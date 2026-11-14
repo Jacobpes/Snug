@@ -1,0 +1,119 @@
+{
+  "meters_per_pixel": 0.002,
+  "reference_roi": "insulated_wall",
+  "detect_mode": "hybrid",
+  "fluctuation_window_s": 4.0,
+  "u_values": {
+    "wall": 0.35,
+    "window": 2.8,
+    "door": 2.0,
+    "roof": 0.3,
+    "corner": 0.8
+  },
+  "thresholds": {
+    "normal_dt": 1.5,
+    "medium_dt": 3.0,
+    "high_dt": 5.0,
+    "area_frac_medium": 0.15,
+    "area_frac_high": 0.3,
+    "anomaly_offset_c": 1.2,
+    "verify_dt_drop_frac": 0.4,
+    "verify_area_drop_frac": 0.4
+  },
+  "defects": {
+    "insulation_gap": true,
+    "thermal_bridge": true,
+    "air_leak": true
+  },
+  "sim": {
+    "outdoor_c": 18.0,
+    "indoor_max_c": 36.0,
+    "heat_delay_s": 6.0,
+    "heat_ramp_s": 14.0
+  },
+  "rois": [
+    {
+      "name": "roof",
+      "element": "roof",
+      "x": 28,
+      "y": 8,
+      "w": 200,
+      "h": 24
+    },
+    {
+      "name": "left_corner",
+      "element": "corner",
+      "x": 28,
+      "y": 32,
+      "w": 16,
+      "h": 140
+    },
+    {
+      "name": "insulated_wall",
+      "element": "wall",
+      "x": 44,
+      "y": 32,
+      "w": 56,
+      "h": 140
+    },
+    {
+      "name": "window",
+      "element": "window",
+      "x": 100,
+      "y": 44,
+      "w": 48,
+      "h": 72
+    },
+    {
+      "name": "uninsulated_wall",
+      "element": "wall",
+      "x": 148,
+      "y": 32,
+      "w": 52,
+      "h": 80
+    },
+    {
+      "name": "door",
+      "element": "door",
+      "x": 160,
+      "y": 112,
+      "w": 40,
+      "h": 60
+    },
+    {
+      "name": "right_corner",
+      "element": "corner",
+      "x": 212,
+      "y": 32,
+      "w": 16,
+      "h": 140
+    }
+  ],
+  "cost": {
+    "locality": "vaasa",
+    "heating_type": "heat_pump",
+    "t_in_c": 21,
+    "t_out_c": null,
+    "survey_side": "auto",
+    "real_areas_m2": {
+      "window": 1.5,
+      "door": 2.0,
+      "wall": 10.0,
+      "roof": 10.0,
+      "corner": 2.0
+    }
+  },
+  "kit": {
+    "uno_q_variant": "2gb",
+    "tc001_price_eur": 225.0,
+    "tc001_vat": "excluded",
+    "tc001_source_url": "https://eu.topdon.com/products/tc001",
+    "uno_q_2gb_price_eur": 59.9,
+    "uno_q_4gb_price_eur": 82.9,
+    "uno_q_vat": "included",
+    "uno_q_2gb_source_url": "https://store.arduino.cc/products/uno-q",
+    "uno_q_4gb_source_url": "https://store.arduino.cc/products/uno-q-4gb",
+    "software_price_eur": 0,
+    "checked": "2026-11-14"
+  }
+}

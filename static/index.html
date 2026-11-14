@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Snug — thermal home check</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0b090c;
+      --bg-2: #120e14;
+      --card: #18141c;
+      --line: #2c2430;
+      --text: #f4eee8;
+      --muted: #9a8b84;
+      --accent: #ff6a2a;
+      --hot: #ffd56a;
+      --ok: #3dcf8e;
+      --low: #7ec8e3;
+      --med: #ff9f1c;
+      --high: #ff4d4d;
+      --iron-1: #3a0a6a;
+      --iron-2: #c4185a;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: radial-gradient(1200px 600px at 20% -10%, #2a1020 0%, var(--bg) 50%); color: var(--text); font-family: "IBM Plex Sans", system-ui, sans-serif; }
+    header {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 16px 24px; border-bottom: 1px solid var(--line);
+      background: linear-gradient(90deg, #1a0c14, #120e14 40%, #0b090c);
+    }
+    .brand { display: flex; align-items: baseline; gap: 12px; }
+    .brand h1 {
+      margin: 0; font-size: 1.6rem; letter-spacing: 0.16em; font-weight: 700;
+      background: linear-gradient(90deg, #ffd56a, #ff6a2a 45%, #ff4d6a);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .brand span { color: var(--muted); font-size: 0.85rem; letter-spacing: 0.04em; }
+    .meta { display: flex; gap: 18px; font-family: "IBM Plex Mono", monospace; font-size: 0.75rem; color: var(--muted); }
+    .meta b { color: var(--hot); font-weight: 500; }
+    main { display: grid; grid-template-columns: minmax(300px, 1.15fr) minmax(340px, 1fr); gap: 20px; padding: 20px 24px 48px; }
+    @media (max-width: 960px) { main { grid-template-columns: 1fr; } }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+    .card h2 { margin: 0 0 12px; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .stream-wrap { position: relative; background: #000; border-radius: 8px; overflow: hidden; border: 1px solid #2a1c18; }
+    #stream { width: 100%; height: auto; image-rendering: pixelated; display: block; }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; font-size: 0.75rem; color: var(--muted); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .ranked { display: grid; gap: 8px; }
+    .finding {
+      border: 1px solid var(--line); border-left-width: 4px; border-radius: 8px; padding: 10px 12px;
+      display: grid; gap: 4px;
+    }
+    .finding.ok, .finding.normal { border-left-color: var(--ok); }
+    .finding.low { border-left-color: var(--low); }
+    .finding.medium { border-left-color: var(--med); }
+    .finding.high { border-left-color: var(--high); }
+    .finding .row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+    .finding .name { font-weight: 600; text-transform: capitalize; }
+    .badge { font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; }
+    .badge.high { color: var(--high); }
+    .badge.medium { color: var(--med); }
+    .badge.low { color: var(--low); }
+    .badge.ok { color: var(--ok); }
+    .finding p { margin: 0; color: var(--muted); font-size: 0.8rem; }
+    .answers { display: grid; gap: 8px; }
+    .answer { display: grid; grid-template-columns: 110px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
+    .answer:last-child { border-bottom: 0; }
+    .answer .k { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; padding-top: 2px; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .tabs button {
+      background: transparent; border: 1px solid var(--line); color: var(--muted);
+      border-radius: 999px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: 0.75rem;
+    }
+    .tabs button.active { border-color: var(--accent); color: var(--text); background: #2a1610; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    button.cta {
+      background: linear-gradient(180deg, #ff8a3d, var(--accent)); color: #1a0a08; border: 0;
+      border-radius: 8px; padding: 8px 14px; font-weight: 600; cursor: pointer; font: inherit;
+    }
+    button.ghost {
+      background: transparent; border: 1px solid var(--line); color: var(--text);
+      border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit;
+    }
+    #verify-out { margin-top: 10px; font-size: 0.85rem; color: var(--muted); white-space: pre-wrap; }
+    #verify-out.pass { color: var(--ok); }
+    #verify-out.fail { color: var(--high); }
+    .cost-line { color: var(--hot); font-size: 0.82rem; margin-top: 2px; }
+    .cost-total {
+      margin-top: 10px; padding: 10px 12px; border-radius: 8px;
+      border: 1px solid #3a2a18; background: #20140e; color: var(--hot); font-weight: 600;
+    }
+    .cost-total small { display: block; color: var(--muted); font-weight: 400; margin-top: 4px; }
+    .settings { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+    .settings label { display: flex; flex-direction: column; gap: 4px; font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+    .settings .wide { grid-column: 1 / -1; }
+    .settings select, .settings input {
+      background: #120e14; color: var(--text); border: 1px solid var(--line);
+      border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 0.85rem; text-transform: none; letter-spacing: 0;
+    }
+    .note { margin: 8px 0 0; color: var(--muted); font-size: 0.72rem; }
+    .save-banner {
+      background: linear-gradient(180deg, #2a1810, #20140e);
+      border-top: 1px solid #5a3a18;
+      color: var(--hot);
+      font-weight: 700;
+      padding: 12px 14px;
+      text-align: center;
+      font-size: 1.05rem;
+      letter-spacing: 0.01em;
+    }
+    .save-banner.none { color: var(--muted); font-weight: 500; }
+    .kit-rows { display: grid; gap: 6px; }
+    .kit-row, .kit-total {
+      display: grid; grid-template-columns: 1fr auto; gap: 8px;
+      align-items: baseline; font-size: 0.9rem;
+    }
+    .kit-row .src { display: block; color: var(--muted); font-size: 0.68rem; font-weight: 400; margin-top: 1px; }
+    .kit-row a { color: var(--low); text-decoration: none; }
+    .kit-row a:hover { text-decoration: underline; }
+    .kit-row .price, .kit-total .price { font-family: "IBM Plex Mono", monospace; font-weight: 600; white-space: nowrap; }
+    .kit-row .price.free { color: var(--ok); }
+    .kit-total {
+      margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
+      font-weight: 700;
+    }
+    .payback {
+      margin-top: 10px; padding: 10px 12px; border-radius: 8px;
+      border: 1px solid #3a2a18; background: #20140e;
+      color: var(--hot); font-weight: 700; font-size: 1.02rem;
+    }
+    .payback.none { color: var(--muted); font-weight: 500; border-color: var(--line); background: transparent; }
+    footer { padding: 0 24px 24px; color: var(--muted); font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>SNUG</h1>
+      <span>Local edge AI thermal home check</span>
+    </div>
+    <div class="meta">
+      <div>FPS <b id="fps">—</b></div>
+      <div>Indoor <b id="tin">—</b></div>
+      <div>Outdoor <b id="tout">—</b></div>
+      <div>Detect <b id="det">—</b></div>
+      <div>Saves <b id="cost-head">—</b></div>
+    </div>
+  </header>
+  <main>
+    <section>
+      <div class="card">
+        <h2>Live thermogram</h2>
+        <div class="stream-wrap">
+          <img id="stream" alt="Live thermal stream" src="/api/stream.mjpeg" />
+          <div class="save-banner" id="save-banner">Fixing these saves —</div>
+        </div>
+        <div class="legend">
+          <span><i class="dot" style="background:var(--ok)"></i>Normal</span>
+          <span><i class="dot" style="background:var(--hot)"></i>Insulation gap</span>
+          <span><i class="dot" style="background:var(--med)"></i>Thermal bridge</span>
+          <span><i class="dot" style="background:var(--high)"></i>Air leak</span>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h2>Before / after verification</h2>
+        <p style="margin:0 0 8px;color:var(--muted);font-size:0.85rem">Capture a baseline, apply the fix on the model house (or restart the simulator with <code>--no-defects</code>), then re-scan. ΔT and anomaly area should drop.</p>
+        <div class="actions">
+          <button class="cta" id="btn-before" type="button">Capture baseline</button>
+          <button class="ghost" id="btn-after" type="button">Verify re-scan</button>
+        </div>
+        <div id="verify-out"></div>
+      </div>
+    </section>
+    <section>
+      <div class="card">
+        <h2>Ranked findings</h2>
+        <div class="ranked" id="ranked"></div>
+        <div class="cost-total" id="cost-total">Fixing these saves — waiting for a scan…</div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h2>Kit cost</h2>
+        <div class="kit-rows" id="kit-rows"></div>
+        <div class="kit-total" id="kit-total"></div>
+        <div class="payback none" id="kit-payback">No leaks found</div>
+        <p class="note" id="kit-note"></p>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h2>Six answers</h2>
+        <div class="tabs" id="tabs"></div>
+        <div class="answers" id="answers"></div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h2>Cost estimate settings</h2>
+        <form class="settings" id="cost-form">
+          <label>Locality
+            <select id="set-locality" name="locality"></select>
+          </label>
+          <label>Heating type
+            <select id="set-heating" name="heating_type"></select>
+          </label>
+          <label>Indoor T_in (°C)
+            <input id="set-tin" name="t_in_c" type="number" step="0.5" value="21" />
+          </label>
+          <label>Outdoor T_out (°C)
+            <input id="set-tout" name="t_out_c" type="number" step="0.5" placeholder="auto (measured)" />
+          </label>
+          <label class="wide">Price override (€/kWh), optional
+            <input id="set-price" name="price_eur_per_kwh" type="number" step="0.001" min="0" placeholder="default from Tilastokeskus" />
+          </label>
+        </form>
+        <p class="note" id="cost-note">Estimate only — Finnish climate (FMI S17 1991–2020) and official energy prices. Air leaks may be underestimated. Needs scan ΔT ≳ 10 °C.</p>
+      </div>
+    </section>
+  </main>
+  <footer>Everything runs on-device. Extra heating cost and Q = U·A·ΔT are labelled estimates, not a certified energy audit. Detector was trained on synthetic frames and should be fine-tuned on real TC001 images.</footer>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let state = { findings: [], answers: [] };
+    let selected = 0;
+    let catalogueReady = false;
+    let settingsDirty = false;
+
+    function sevClass(f) {
+      if (!f || f.normal || f.defect === "normal") return "ok";
+      return f.severity || "ok";
+    }
+    function fmt(n, d=1) { return (n == null || Number.isNaN(n)) ? "—" : Number(n).toFixed(d); }
+    function labelDefect(d) {
+      return ({ insulation_gap: "Insulation gap", thermal_bridge: "Thermal bridge", air_leak: "Air leak", normal: "Normal" })[d] || d;
+    }
+
+    function render() {
+      $("fps").textContent = fmt(state.fps, 1);
+      $("tin").textContent = state.meta?.indoor_c != null ? fmt(state.meta.indoor_c) + " °C" : "—";
+      $("tout").textContent = state.meta?.outdoor_c != null ? fmt(state.meta.outdoor_c) + " °C" : "—";
+      $("det").textContent = state.detector?.model ? (state.detector.mode + " + model") : (state.detector?.mode || "rois");
+      const tot = state.cost;
+      $("cost-head").textContent = tot && tot.cost_eur_high
+        ? `€${tot.cost_eur_low_display}–${tot.cost_eur_high_display}/yr`
+        : (tot && tot.short ? tot.short.replace("Fixing these saves ~", "") : "—");
+      const totalBox = $("cost-total");
+      if (tot && tot.label) {
+        const warn = tot.reliable === false ? "<small>Uncertain: scan indoor–outdoor ΔT is below ~10 °C.</small>" : "";
+        totalBox.innerHTML = tot.label + warn;
+      }
+      const banner = $("save-banner");
+      if (banner) {
+        const text = (tot && (tot.banner || tot.short || tot.label)) || "No leaks found";
+        banner.textContent = text;
+        banner.className = "save-banner" + ((tot && tot.cost_eur_high > 0) ? "" : " none");
+      }
+      renderKit(state);
+
+      fillSettings(state);
+
+      const ranked = $("ranked");
+      ranked.innerHTML = "";
+      (state.findings || []).forEach((f, i) => {
+        const el = document.createElement("div");
+        el.className = "finding " + sevClass(f);
+        el.innerHTML = `
+          <div class="row">
+            <div class="name">${f.name.replaceAll("_"," ")}</div>
+            <div class="badge ${sevClass(f)}">${f.normal ? "OK" : (f.severity || "").toUpperCase()}</div>
+          </div>
+          <p>${f.hud || labelDefect(f.defect)} · ΔT ${fmt(f.delta_c)} °C · Q≈ ${fmt(f.q_watts, 3)} W (est.)</p>
+          <p class="cost-line">${f.cost_label || f.cost?.label || (f.normal ? "Est. extra heating cost: €0 / year" : "")}</p>
+          <p>${f.fix}</p>`;
+        el.addEventListener("click", () => { selected = i; renderAnswers(); });
+        ranked.appendChild(el);
+      });
+      renderAnswers();
+    }
+
+    function renderAnswers() {
+      const findings = state.findings || [];
+      const tabs = $("tabs");
+      tabs.innerHTML = "";
+      findings.forEach((f, i) => {
+        const b = document.createElement("button");
+        b.textContent = f.name.replaceAll("_"," ");
+        b.className = i === selected ? "active" : "";
+        b.addEventListener("click", () => { selected = i; renderAnswers(); });
+        tabs.appendChild(b);
+      });
+      const f = findings[selected] || findings[0];
+      const box = $("answers");
+      if (!f) { box.innerHTML = "<p style='color:var(--muted)'>Waiting for frames…</p>"; return; }
+      const rows = [
+        ["Building element", f.element],
+        ["Pattern normal?", f.normal ? "Yes" : "No"],
+        ["Likely defect", labelDefect(f.defect)],
+        ["Severity", f.normal ? "OK" : String(f.severity).toUpperCase() + `  (ΔT ${fmt(f.delta_c)} °C, anomaly ${fmt(f.anomaly_frac*100,0)}%)`],
+        ["Priority fix", f.fix],
+        ["How to verify", f.verify],
+        ["You save", f.cost_short || f.cost?.short || f.answers_cost || "—"],
+      ];
+      box.innerHTML = rows.map(([k,v]) => `<div class="answer"><div class="k">${k}</div><div>${v}</div></div>`).join("");
+    }
+
+    function vatTag(vat) {
+      if (vat === "excluded") return "excl. VAT";
+      if (vat === "included") return "VAT included";
+      return "";
+    }
+    function renderKit(st) {
+      const kit = st.kit;
+      const rows = $("kit-rows");
+      const totalEl = $("kit-total");
+      const pb = $("kit-payback");
+      const note = $("kit-note");
+      if (!kit || !rows) return;
+      rows.innerHTML = (kit.items || []).map((it) => {
+        const vat = vatTag(it.vat);
+        const src = it.source_url
+          ? `<a href="${it.source_url}" target="_blank" rel="noopener">${it.source_label || it.source_url}</a>`
+          : (it.source_label || "");
+        const extra = [vat, it.note].filter(Boolean).join(" · ");
+        const free = Number(it.price_eur) === 0;
+        return `<div class="kit-row">
+          <div>${it.name}${src ? `<span class="src">${src}${extra ? " · " + extra : ""}</span>` : (extra ? `<span class="src">${extra}</span>` : "")}</div>
+          <div class="price${free ? " free" : ""}">${it.price_label || ("€" + it.price_eur)}</div>
+        </div>`;
+      }).join("");
+      totalEl.innerHTML = `<div>Total</div><div class="price">${kit.total_label || ""}</div>`;
+      const pay = kit.payback || {};
+      pb.textContent = pay.label || "No leaks found";
+      pb.className = "payback" + (pay.months == null ? " none" : "");
+      note.textContent = kit.vat_note || "";
+    }
+
+    function fillSettings(st) {
+      const cat = st.cost_catalogue;
+      const set = st.cost_settings;
+      if (cat && !catalogueReady) {
+        const loc = $("set-locality");
+        loc.innerHTML = "";
+        (cat.localities || []).forEach((l) => {
+          const opt = document.createElement("option");
+          opt.value = l.id;
+          const s17 = l.s17 != null ? l.s17 : "";
+          opt.textContent = `${l.name_en} (S17 ${Math.round(s17)})`;
+          loc.appendChild(opt);
+        });
+        const ht = $("set-heating");
+        ht.innerHTML = "";
+        (cat.heating_types || []).forEach((h) => {
+          const opt = document.createElement("option");
+          opt.value = h.id;
+          opt.textContent = h.name_en;
+          ht.appendChild(opt);
+        });
+        catalogueReady = true;
+        ["set-locality","set-heating","set-tin","set-tout","set-price"].forEach((id) => {
+          $(id).addEventListener("change", onSettingsChange);
+        });
+      }
+      if (set && !settingsDirty) {
+        $("set-locality").value = set.locality || "vaasa";
+        $("set-heating").value = set.heating_type || "heat_pump";
+        $("set-tin").value = set.t_in_c != null ? set.t_in_c : 21;
+        $("set-tout").value = set.t_out_c != null ? set.t_out_c : "";
+        $("set-price").value = set.price_eur_per_kwh != null ? set.price_eur_per_kwh : "";
+      }
+      const loc = (cat?.localities || []).find((l) => l.id === set?.locality);
+      const heat = (cat?.heating_types || []).find((h) => h.id === set?.heating_type);
+      const bits = [];
+      if (loc) bits.push(`S17 ${Math.round(loc.s17)} °C·d (${loc.station}${loc.k1 && loc.k1 !== 1 ? `, K1 ${loc.k1}` : ""})`);
+      if (loc?.note) bits.push(loc.note);
+      if (heat) bits.push(`Default price ${heat.price_default} €/kWh (${cat?.sources?.price_period || "2026-06"}, Tilastokeskus).`);
+      if (heat?.efficiency_note) bits.push(heat.efficiency_note);
+      bits.push("Estimate only. Surface-temperature method; scale-model areas are assumed real sizes. Air leaks may be underestimated.");
+      $("cost-note").textContent = bits.join(" ");
+    }
+
+    async function onSettingsChange() {
+      settingsDirty = true;
+      const tout = $("set-tout").value;
+      const price = $("set-price").value;
+      const body = {
+        locality: $("set-locality").value,
+        heating_type: $("set-heating").value,
+        t_in_c: Number($("set-tin").value),
+        t_out_c: tout === "" ? null : Number(tout),
+        price_eur_per_kwh: price === "" ? null : Number(price),
+      };
+      try {
+        const res = await fetch("/api/cost/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          state.cost_settings = data.settings;
+          state.cost = data.total;
+          settingsDirty = false;
+          // Refresh findings' cost labels from a state poll on the next tick.
+          tick();
+        }
+      } catch (err) { /* keep last */ }
+      settingsDirty = false;
+    }
+
+    async function tick() {
+      try {
+        const res = await fetch("/api/state");
+        state = await res.json();
+        if (selected >= (state.findings || []).length) selected = 0;
+        render();
+      } catch (err) { /* keep last frame */ }
+    }
+    setInterval(tick, 400);
+    tick();
+
+    $("btn-before").addEventListener("click", async () => {
+      const res = await fetch("/api/verify/before", { method: "POST" });
+      const data = await res.json();
+      const out = $("verify-out");
+      out.className = "";
+      out.textContent = "Baseline stored for " + Object.keys(data.regions || {}).length + " regions. Apply the fix, then verify.";
+    });
+    $("btn-after").addEventListener("click", async () => {
+      const res = await fetch("/api/verify/after", { method: "POST" });
+      const data = await res.json();
+      const out = $("verify-out");
+      if (!data.ok) { out.className = "fail"; out.textContent = data.error; return; }
+      out.className = data.passed ? "pass" : "fail";
+      const lines = [data.summary];
+      (data.regions || []).forEach(r => {
+        lines.push(`${r.name}: ${r.status}  ΔT ${fmt(r.delta_c_before)}→${fmt(r.delta_c_after)} °C  area drop ${fmt((r.area_drop_frac||0)*100,0)}%`);
+      });
+      out.textContent = lines.join("\n");
+    });
+  </script>
+</body>
+</html>

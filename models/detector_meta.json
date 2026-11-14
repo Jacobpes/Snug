@@ -1,0 +1,30 @@
+{
+  "trained_on": "synthetic_model_house",
+  "input": [
+    1,
+    192,
+    256
+  ],
+  "grid": [
+    12,
+    16
+  ],
+  "classes": [
+    "background",
+    "wall",
+    "window",
+    "door",
+    "roof",
+    "corner"
+  ],
+  "heldout_grid_acc": 0.630615234375,
+  "recalls": {
+    "background": 0.6346872663842512,
+    "wall": 0.5386035066133498,
+    "window": 0.5482180293501048,
+    "door": 0.3741851368970013,
+    "roof": 0.7808471454880295,
+    "corner": 0.8178016726403823
+  },
+  "note": "Must be fine-tuned on real TC001 images of the physical demo house."
+}
