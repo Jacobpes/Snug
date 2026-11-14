@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from snug.analysis import SENSITIVITY_OPTIONS, SENSITIVITY_PRESETS, HouseAnalyzer, RegionFinding, normalize_sensitivity
+from snug.analysis import SENSITIVITY_OPTIONS, SEVERITY_RANK, SENSITIVITY_PRESETS, HouseAnalyzer, RegionFinding, normalize_sensitivity
 from snug.bridge import AlarmBridge
 from snug.capture import iter_frames
 from snug.colormap import temps_to_ironbow
@@ -78,6 +78,7 @@ class Pipeline:
         self.overlay = self.visual.copy()
         self.temps = np.zeros((192, 256), dtype=np.float32)
         self.findings: list[RegionFinding] = []
+        self.max_findings: int = 1  # show only the most serious defect
         self.meta: dict[str, Any] = {}
         self.jpeg = b""
         self.fps = 0.0
@@ -97,7 +98,10 @@ class Pipeline:
             temps, regions, ambient_c=ambient, indoor_c=indoor, now=meta.get("elapsed_s") or time.monotonic()
         )
         t_in, t_out, scan = self._scan_temps(indoor, ambient)
-        cost_total = attach_costs(findings, self._settings_for_scan(scan), t_in=t_in, t_out=t_out)
+        settings = self._settings_for_scan(scan)
+        attach_costs(findings, settings, t_in=t_in, t_out=t_out)
+        findings = self._pick_most_serious(findings)
+        cost_total = attach_costs(findings, settings, t_in=t_in, t_out=t_out)
         cost_total.update(scan)
         t3 = time.perf_counter()
         color = temps_to_ironbow(temps)
@@ -121,6 +125,32 @@ class Pipeline:
             }
             self.frame_id += 1
         self.bridge.set_from_findings(findings)
+
+    @staticmethod
+    def _seriousness(f: RegionFinding) -> float:
+        cost = (f.cost or {}).get("cost_eur_high") or 0.0
+        return SEVERITY_RANK.get(f.severity, 0) * 1e6 + float(cost) * 100.0 + float(f.priority)
+
+    def _pick_most_serious(self, findings: list[RegionFinding]) -> list[RegionFinding]:
+        """Show only the single most serious defect (severity first, then €/yr, then priority).
+
+        Small hysteresis: keep the previously shown region while it is still at least 80 % as
+        serious as the best one, so the flag does not jump between spots every frame.
+        """
+        defects = [f for f in findings if not f.normal]
+        limit = int(getattr(self, "max_findings", 1))
+        if not defects or limit <= 0:
+            return []
+        defects.sort(key=self._seriousness, reverse=True)
+        best = defects[0]
+        prev = getattr(self, "_shown_name", None)
+        for f in defects:
+            if f.name == prev and f.severity == best.severity and self._seriousness(f) >= 0.8 * self._seriousness(best):
+                best = f
+                break
+        self._shown_name = best.name
+        rest = [f for f in defects if f is not best]
+        return ([best] + rest)[:limit]
 
     def _settings_for_scan(self, scan: dict[str, Any]) -> CostSettings:
         """A live scan is by definition an interior survey (cold spots), so pin the side."""
