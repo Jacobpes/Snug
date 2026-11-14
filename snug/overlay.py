@@ -207,6 +207,48 @@ def _brackets(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], color, 
         draw.line((cx, cy, cx, cy + dy * arm), fill=color, width=width)
 
 
+HOT_RGB = (255, 70, 50)
+COLD_RGB = (70, 190, 255)
+
+
+def extreme_points(temps: np.ndarray) -> dict[str, tuple[int, int, float]]:
+    """(x, y, °C) of the hottest and coldest pixel in the frame."""
+    t = np.nan_to_num(np.asarray(temps, dtype=np.float32), nan=float(np.nanmedian(temps)))
+    iy, ix = np.unravel_index(int(np.argmax(t)), t.shape)
+    jy, jx = np.unravel_index(int(np.argmin(t)), t.shape)
+    return {"max": (int(ix), int(iy), float(t[iy, ix])), "min": (int(jx), int(jy), float(t[jy, jx]))}
+
+
+def _draw_extreme_markers(draw, temps, scale, cw, ch, font, occupied, top_bar) -> None:
+    pts = extreme_points(temps)
+    r = int(round(4 * scale))
+    for key, color, word in (("max", HOT_RGB, "MAX"), ("min", COLD_RGB, "MIN")):
+        x, y, t = pts[key]
+        px, py = int((x + 0.5) * scale), int((y + 0.5) * scale)
+        # crosshair with dark halo so it reads on any colour
+        for col, wdt in (((9, 6, 20, 190), max(3, scale + 2)), (color + (255,), max(2, scale))):
+            draw.ellipse((px - r, py - r, px + r, py + r), outline=col, width=wdt)
+            draw.line((px - 2 * r, py, px - r // 2, py), fill=col, width=wdt)
+            draw.line((px + r // 2, py, px + 2 * r, py), fill=col, width=wdt)
+            draw.line((px, py - 2 * r, px, py - r // 2), fill=col, width=wdt)
+            draw.line((px, py + r // 2, px, py + 2 * r), fill=col, width=wdt)
+        text = f"{word} {t:.1f} °C"
+        tw = int(draw.textlength(text, font=font))
+        th = int(font.size)
+        padx, pady = int(round(1.8 * scale)), int(round(1.0 * scale))
+        bw, bh = tw + 2 * padx, th + 2 * pady
+        bx = px + 2 * r + 2
+        if bx + bw > cw - 2:
+            bx = px - 2 * r - 2 - bw
+        by = py - bh // 2
+        by = max(top_bar if bx < cw // 3 else 2, min(by, ch - bh - 2))
+        bx = max(2, bx)
+        draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=bh // 2, fill=PLATE + (225,))
+        draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=bh // 2, outline=color + (230,), width=max(1, scale // 2))
+        draw.text((bx + padx, by + bh / 2), text, font=font, fill=color + (255,), anchor="lm")
+        occupied.append((bx, by, bw, bh))
+
+
 def draw_findings(
     visual: np.ndarray,
     findings: Iterable[Any],
@@ -292,6 +334,10 @@ def draw_findings(
         draw.text((bx + bpx, by + bpy - 2), banner, font=f_banner, fill=(AMBER if has_sav else (210, 210, 218)) + (255,))
         occupied.append((bx, by, pw, ph))
         bottom_limit = by
+
+    # --- hottest / coldest point markers ------------------------------------------------------
+    if temps is not None and temps.size:
+        _draw_extreme_markers(draw, temps, scale, cw, ch, f_tag, occupied, top_bar)
 
     # --- labels -------------------------------------------------------------------------------
     pad = int(round(2.4 * scale))

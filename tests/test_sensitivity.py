@@ -219,3 +219,38 @@ def test_api_exposes_and_sets_sensitivity():
 def test_cli_sensitivity_flag():
     assert parse_args(["--sensitivity", "low"]).sensitivity == "low"
     assert parse_args([]).sensitivity is None
+
+
+def _live_full_pipe(cfg):
+    from snug.bridge import AlarmBridge
+    from snug.cost import KitSettings
+
+    pipe = Pipeline.__new__(Pipeline)
+    pipe.args = parse_args(["--rois-only"])
+    pipe.cfg = cfg
+    pipe.detector = ElementDetector(config=cfg, mode="rois")
+    pipe.analyzer = HouseAnalyzer({**cfg, "sensitivity": "high"})
+    pipe.cost_settings = CostSettings.from_config(cfg)
+    pipe.kit_settings = KitSettings()
+    pipe.cost_total = {}
+    pipe.bridge = AlarmBridge(enabled=False)
+    pipe.lock = threading.Lock()
+    pipe.findings, pipe.meta, pipe.latencies = [], {}, {}
+    pipe.frame_id = 0
+    return pipe
+
+
+def test_live_shows_only_the_coldest_area_as_the_leak(cfg):
+    """Interior view: a warm person/radiator must not win over a cold spot; one flag only."""
+    pipe = _live_full_pipe(cfg)
+    rng = np.random.default_rng(3)
+    for i in range(12):
+        t = _frame(rng, [(30, 120, 30, 40, +6.0), (190, 20, 18, 14, -2.5)])
+        pipe.process_frame(np.zeros((192, 256, 3), np.uint8), t, {"elapsed_s": i * 0.12})
+    assert len(pipe.findings) == 1
+    f = pipe.findings[0]
+    assert f.direction == "cold"
+    cx, cy = 190 + 9, 20 + 7
+    assert f.x <= cx <= f.x + f.w and f.y <= cy <= f.y + f.h
+    assert pipe.cost_total["cost_eur_high"] > 0
+    assert f.w <= 40 and f.h <= 40  # tight box around the cold spot, not a whole wall

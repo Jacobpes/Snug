@@ -99,8 +99,13 @@ class Pipeline:
         )
         t_in, t_out, scan = self._scan_temps(indoor, ambient)
         settings = self._settings_for_scan(scan)
+        if scan.get("scan_mode") == "live_interior":
+            # Seen from inside, the coldest area is where heat escapes: always consider it.
+            cold = self.analyzer.coldest_area_finding(temps, indoor_c=indoor)
+            if cold is not None:
+                findings = findings + [cold]
         attach_costs(findings, settings, t_in=t_in, t_out=t_out)
-        findings = self._pick_most_serious(findings)
+        findings = self._pick_most_serious(findings, prefer_cold=scan.get("scan_mode") == "live_interior")
         cost_total = attach_costs(findings, settings, t_in=t_in, t_out=t_out)
         cost_total.update(scan)
         t3 = time.perf_counter()
@@ -131,13 +136,20 @@ class Pipeline:
         cost = (f.cost or {}).get("cost_eur_high") or 0.0
         return SEVERITY_RANK.get(f.severity, 0) * 1e6 + float(cost) * 100.0 + float(f.priority)
 
-    def _pick_most_serious(self, findings: list[RegionFinding]) -> list[RegionFinding]:
+    def _pick_most_serious(self, findings: list[RegionFinding], prefer_cold: bool = False) -> list[RegionFinding]:
         """Show only the single most serious defect (severity first, then €/yr, then priority).
 
         Small hysteresis: keep the previously shown region while it is still at least 80 % as
         serious as the best one, so the flag does not jump between spots every frame.
         """
         defects = [f for f in findings if not f.normal]
+        if prefer_cold and any(f.direction == "cold" for f in defects):
+            # Interior scan: cold spots are the leaks; warm spots are heat sources (people, radiators).
+            defects = [f for f in defects if f.direction == "cold"]
+            tight = [f for f in defects if f.name == "coldest_area"]
+            if tight:
+                # The tight blob around the coldest pixels outlines the leak better than a whole wall ROI.
+                defects = tight
         limit = int(getattr(self, "max_findings", 1))
         if not defects or limit <= 0:
             return []

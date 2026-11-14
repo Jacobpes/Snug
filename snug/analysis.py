@@ -608,6 +608,71 @@ class HouseAnalyzer:
         findings.sort(key=lambda f: f.priority, reverse=True)
         return findings
 
+    def coldest_area_finding(self, temps: np.ndarray, indoor_c: float | None = None) -> RegionFinding | None:
+        """Live interior scan: the coldest area in the frame as a cold-spot leak candidate.
+
+        Takes the connected blob around the coldest (smoothed) pixel, i.e. pixels within a band
+        above the minimum, and reports it if it is colder than the scene by more than the
+        sensitivity's normal_dt. Seen from inside, cold = heat escaping (leak / cold bridge).
+        """
+        th = self.thresholds
+        t = np.nan_to_num(np.asarray(temps, dtype=np.float32), nan=float(np.nanmedian(temps)))
+        sm = self._blur(t)
+        scene = float(self.scene_c) if self.scene_c is not None else float(np.median(sm))
+        t_min = float(sm.min())
+        deficit_max = scene - t_min
+        if deficit_max < float(th["normal_dt"]):
+            return None
+        band = max(0.3, 0.4 * deficit_max)
+        mask = (sm <= t_min + band).astype(np.uint8)
+        my, mx = np.unravel_index(int(np.argmin(sm)), sm.shape)
+        _, labels = cv2.connectedComponents(mask, connectivity=8)
+        blob = labels == labels[my, mx]
+        ys, xs = np.nonzero(blob)
+        if ys.size < 4:
+            return None
+        x0, x1, y0, y1 = int(xs.min()), int(xs.max()), int(ys.min()), int(ys.max())
+        pad = 3
+        x0, y0 = max(0, x0 - pad), max(0, y0 - pad)
+        x1, y1 = min(t.shape[1] - 1, x1 + pad), min(t.shape[0] - 1, y1 + pad)
+        crop_mask = blob[y0 : y1 + 1, x0 : x1 + 1]
+        vals = t[blob]
+        t_surface = float(vals.mean())
+        delta = scene - t_surface
+        if delta < float(th["normal_dt"]):
+            return None
+        frac = float(ys.size) / float(t.size)
+        compactness, aspect, _ = shape_features(crop_mask.astype(np.uint8))
+        edge_ov = edge_overlap_fraction(blob.astype(np.uint8))
+        defect, reasons = classify_defect(
+            element="wall", delta_c=delta, compactness=compactness, aspect_ratio=aspect,
+            edge_overlap=edge_ov, fluctuation_c=None, anomaly_frac=max(frac, float(th.get("min_frac", 0.02))),
+            normal_dt=float(th["normal_dt"]), min_frac=0.0, direction="cold",
+        )
+        if defect == "normal":
+            defect = "thermal_bridge"
+        sev = severity_of(delta, frac, th)
+        if sev == "ok":
+            sev = "low"
+        reasons.append(f"coldest area in view: {delta:.1f} °C below the room surfaces ({scene:.1f} °C)")
+        area_m2 = ys.size * self.meters_per_pixel**2
+        u = float(self.u_values.get("wall", 0.35))
+        q = estimate_q(u, area_m2, delta)
+        act = action_for(defect)
+        crop = t[y0 : y1 + 1, x0 : x1 + 1]
+        return RegionFinding(
+            name="coldest_area", element="wall", x=x0, y=y0, w=x1 - x0 + 1, h=y1 - y0 + 1,
+            mean_c=float(crop.mean()), max_c=float(crop.max()), min_c=float(crop.min()), std_c=float(crop.std()),
+            ambient_c=scene, reference_c=scene, delta_c=float(delta), indoor_c=indoor_c,
+            anomaly_pixels=int(ys.size), anomaly_area_m2=float(area_m2), anomaly_frac=frac,
+            compactness=float(compactness), aspect_ratio=float(aspect), edge_overlap=float(edge_ov),
+            fluctuation_c=None, normal=False, defect=defect, severity=sev, q_watts=float(q), u_value=u,
+            priority=float(SEVERITY_RANK[sev] * 10.0 + q + delta), fix=act["fix"],
+            verify=act["verify"].replace("warm", "cold"),
+            hud=f"{act['hud']} at coldest area · Severity {sev.upper()}", reasons=reasons,
+            t_surface_c=t_surface, t_ref_surface_c=scene, direction="cold", live=True,
+        )
+
     def snapshot(self, findings: list[RegionFinding]) -> dict[str, dict[str, Any]]:
         return {
             f.name: {
