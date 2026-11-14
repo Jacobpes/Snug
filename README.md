@@ -1,7 +1,7 @@
 # Snug
 
 Local Edge AI thermal home check for Junction 2026 (Arduino Hardware / Edge AI challenge).  
-A Topdon TC001 on an Arduino UNO Q looks at a small model house and answers, **on device**, six questions per region:
+A Topdon TC001 on an Arduino UNO Q running a web UI guides you through your house to look at the outer walls, **on device**, six questions:
 
 1. What building element is this?  
 2. Is the thermal pattern normal?  
