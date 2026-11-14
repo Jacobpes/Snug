@@ -2,438 +2,917 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#09090B" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%23141417%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%268%27 fill=%27%23F9B233%27/%3E%3C/svg%3E" />
   <title>Snug — thermal home check</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
+    /* Fonts are bundled in /static/fonts (SIL OFL) so the dashboard works offline on the UNO Q. */
+    @font-face { font-family: "Poppins"; font-weight: 500; font-style: normal; font-display: swap; src: url("/static/fonts/Poppins-Medium.woff2") format("woff2"); }
+    @font-face { font-family: "Poppins"; font-weight: 600; font-style: normal; font-display: swap; src: url("/static/fonts/Poppins-SemiBold.woff2") format("woff2"); }
+    @font-face { font-family: "Poppins"; font-weight: 700; font-style: normal; font-display: swap; src: url("/static/fonts/Poppins-Bold.woff2") format("woff2"); }
+    @font-face { font-family: "Inter"; font-weight: 100 900; font-style: normal; font-display: swap; src: url("/static/fonts/Inter-Variable.woff2") format("woff2"); }
+
     :root {
-      --bg: #0b090c;
-      --bg-2: #120e14;
-      --card: #18141c;
-      --line: #2c2430;
-      --text: #f4eee8;
-      --muted: #9a8b84;
-      --accent: #ff6a2a;
-      --hot: #ffd56a;
-      --ok: #3dcf8e;
-      --low: #7ec8e3;
-      --med: #ff9f1c;
-      --high: #ff4d4d;
-      --iron-1: #3a0a6a;
-      --iron-2: #c4185a;
+      /* Palette taken from the Snug pitch deck */
+      --bg: #09090b;
+      --graphite: #2a2a31;
+      --card: #141417;
+      --card-2: #1a1a1e;
+      --line: rgba(255, 255, 255, 0.08);
+      --line-2: rgba(255, 255, 255, 0.14);
+      --text: #ffffff;
+      --text-2: #e6e6ea;
+      --muted: #a9a9b3;
+      --dim: #7b7b86;
+      --amber: #f9b233;
+      --orange: #ec5a26;
+      --magenta: #a3207f;
+      --purple: #3b0f6e;
+      --green: #3dcf8e;
+      --violet: #9b6bd0;
+      --ironbow: linear-gradient(90deg, #3b0f6e 0%, #a3207f 38%, #ec5a26 72%, #f9b233 100%);
+      --ironbow-v: linear-gradient(180deg, #3b0f6e 0%, #a3207f 38%, #ec5a26 72%, #f9b233 100%);
+      --radius: 1.15rem;
+      --display: "Poppins", "Inter", system-ui, sans-serif;
+      --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; background: radial-gradient(1200px 600px at 20% -10%, #2a1020 0%, var(--bg) 50%); color: var(--text); font-family: "IBM Plex Sans", system-ui, sans-serif; }
-    header {
-      display: flex; align-items: center; justify-content: space-between; gap: 16px;
-      padding: 16px 24px; border-bottom: 1px solid var(--line);
-      background: linear-gradient(90deg, #1a0c14, #120e14 40%, #0b090c);
+    html { font-size: clamp(15px, 0.55vw + 9.2px, 20px); -webkit-text-size-adjust: 100%; }
+    html { background: var(--bg); }
+    body {
+      margin: 0; min-height: 100vh; color: var(--text); font-family: var(--body); line-height: 1.45;
+      -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01";
     }
-    .brand { display: flex; align-items: baseline; gap: 12px; }
-    .brand h1 {
-      margin: 0; font-size: 1.6rem; letter-spacing: 0.16em; font-weight: 700;
-      background: linear-gradient(90deg, #ffd56a, #ff6a2a 45%, #ff4d6a);
-      -webkit-background-clip: text; background-clip: text; color: transparent;
+    /* graphite wash with a hint of thermal glow, like the deck background */
+    body::before {
+      content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(60rem 28rem at 88% -8%, rgba(163, 32, 127, 0.16), transparent 60%),
+        radial-gradient(50rem 24rem at -5% 0%, rgba(59, 15, 110, 0.22), transparent 60%),
+        linear-gradient(180deg, #1c1c21 0%, #101013 38%, var(--bg) 100%);
     }
-    .brand span { color: var(--muted); font-size: 0.85rem; letter-spacing: 0.04em; }
-    .meta { display: flex; gap: 18px; font-family: "IBM Plex Mono", monospace; font-size: 0.75rem; color: var(--muted); }
-    .meta b { color: var(--hot); font-weight: 500; }
-    main { display: grid; grid-template-columns: minmax(300px, 1.15fr) minmax(340px, 1fr); gap: 20px; padding: 20px 24px 48px; }
-    @media (max-width: 960px) { main { grid-template-columns: 1fr; } }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
-    .card h2 { margin: 0 0 12px; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-    .stream-wrap { position: relative; background: #000; border-radius: 8px; overflow: hidden; border: 1px solid #2a1c18; }
-    #stream { width: 100%; height: auto; image-rendering: pixelated; display: block; }
-    .legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; font-size: 0.75rem; color: var(--muted); }
-    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
-    .ranked { display: grid; gap: 8px; }
+    h1, h2, h3, h4, p { margin: 0; }
+    button, select, input { font: inherit; color: inherit; }
+    a { color: inherit; }
+    .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    svg.i { width: 1em; height: 1em; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ---------- top bar ---------- */
+    .topbar {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+      padding: 0.7rem clamp(1rem, 2.4vw, 2.2rem);
+      background: rgba(12, 12, 14, 0.82); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--line);
+    }
+    .brand { display: flex; align-items: baseline; gap: 0.7rem; margin-right: auto; }
+    .wordmark { font-family: var(--display); font-weight: 700; font-size: 1.6rem; letter-spacing: -0.02em; line-height: 1; }
+    .wordmark i { font-style: normal; color: var(--amber); }
+    .tagline { color: var(--muted); font-size: 0.8rem; }
+    .status { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 0.45rem; white-space: nowrap;
+      padding: 0.3rem 0.7rem; border-radius: 999px; font-size: 0.74rem; font-weight: 500; color: var(--text-2);
+      background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line);
+    }
+    .pill b { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .pill .dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--dim); }
+    .pill.live .dot { background: var(--green); box-shadow: 0 0 0 0 rgba(61, 207, 142, 0.6); animation: pulse 2s infinite; }
+    .pill.sim .dot { background: var(--amber); }
+    .pill.safe { color: var(--green); border-color: rgba(61, 207, 142, 0.3); background: rgba(61, 207, 142, 0.07); }
+    @keyframes pulse { 70% { box-shadow: 0 0 0 0.45rem rgba(61, 207, 142, 0); } 100% { box-shadow: 0 0 0 0 rgba(61, 207, 142, 0); } }
+    .btn-settings {
+      display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer;
+      padding: 0.4rem 0.85rem; border-radius: 999px; font-size: 0.78rem; font-weight: 600;
+      background: transparent; border: 1px solid var(--line-2); color: var(--text);
+      transition: background .15s, border-color .15s;
+    }
+    .btn-settings:hover { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.28); }
+
+    /* ---------- layout ---------- */
+    .layout {
+      display: grid; grid-template-columns: minmax(0, 1.22fr) minmax(0, 1fr); gap: clamp(1.2rem, 2.4vw, 2.4rem);
+      max-width: 1720px; margin: 0 auto; padding: clamp(1rem, 2.4vw, 2.2rem) clamp(1rem, 2.4vw, 2.2rem) 2rem;
+      align-items: start;
+    }
+    .col-hero { position: sticky; top: 4.4rem; }
+    .col-side { display: grid; gap: 1.1rem; min-width: 0; }
+    @media (max-width: 1000px) {
+      .layout { grid-template-columns: 1fr; gap: 1.1rem; }
+      .col-hero, .col-side { display: contents; position: static; }
+      .headline { order: 1; } .thermo { order: 2; } .legend { order: 3; }
+      .findings-head { order: 4; } #findings { order: 5; } #allclear { order: 5; } #fine { order: 6; }
+      .verify { order: 7; } .kit { order: 8; }
+    }
+
+    /* ---------- headline ---------- */
+    .headline { margin-bottom: 1.1rem; }
+    .eyebrow { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.55rem; }
+    h1.title {
+      font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.12;
+      font-size: clamp(1.65rem, 1.1rem + 1.7vw, 2.8rem);
+    }
+    h1.title .a { display: block; color: var(--amber); }
+    .sub { margin-top: 0.6rem; color: var(--muted); font-size: 0.88rem; display: flex; flex-wrap: wrap; gap: 0.35rem 0.7rem; align-items: center; }
+    .est { display: inline-flex; padding: 0.12rem 0.55rem; border-radius: 999px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber); border: 1px solid rgba(249, 178, 51, 0.4); }
+    .warn { margin-top: 0.6rem; font-size: 0.82rem; color: var(--amber); display: none; }
+    .warn.show { display: block; }
+    .skeleton h1.title { color: transparent; }
+    .skeleton h1.title span { background: linear-gradient(90deg, rgba(255,255,255,.06), rgba(255,255,255,.14), rgba(255,255,255,.06)); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: .5rem; color: transparent; }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+
+    /* ---------- thermogram ---------- */
+    .thermo {
+      position: relative; margin: 0; border-radius: 1.4rem; overflow: hidden; background: #050507;
+      border: 1px solid var(--line-2); box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.6);
+      aspect-ratio: 4 / 3;
+    }
+    .thermo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .thermo .wait {
+      position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--muted); font-size: 0.9rem;
+      background: radial-gradient(circle at 50% 40%, rgba(163, 32, 127, 0.25), transparent 60%), #050507; transition: opacity .4s; pointer-events: none;
+    }
+    .thermo.ready .wait { opacity: 0; }
+    .legend { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 0.8rem; font-size: 0.76rem; color: var(--muted); }
+    .scale { display: flex; align-items: center; gap: 0.55rem; }
+    .scale i { display: block; width: 7rem; height: 0.5rem; border-radius: 99px; background: linear-gradient(90deg, #09061a, #3b0f6e, #a3207f, #ec5a26, #f9b233, #fff6df); }
+    .legend .hint { margin-left: auto; display: inline-flex; align-items: center; gap: 0.4rem; }
+    .legend .hint b { display: inline-grid; place-items: center; width: 1.2rem; height: 1.2rem; border-radius: 50%; background: var(--orange); color: #fff; font: 700 0.66rem var(--display); }
+
+    /* ---------- cards ---------- */
+    .card { background: linear-gradient(180deg, #19191d, var(--card)); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.15rem 1.2rem; }
+    .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+    h2.h { font-family: var(--display); font-weight: 600; font-size: 1.15rem; letter-spacing: -0.01em; }
+    .section-head .count { color: var(--muted); font-size: 0.8rem; }
+    .findings-head { margin-bottom: -0.15rem; }
+    #findings { display: grid; gap: 0.8rem; }
+
     .finding {
-      border: 1px solid var(--line); border-left-width: 4px; border-radius: 8px; padding: 10px 12px;
-      display: grid; gap: 4px;
+      position: relative; padding: 1rem 1.1rem 0.9rem 1.3rem; border-radius: var(--radius); overflow: hidden;
+      background: linear-gradient(180deg, #1a1a1f, #141417); border: 1px solid var(--line);
+      animation: rise .35s ease both; --sev: var(--orange);
     }
-    .finding.ok, .finding.normal { border-left-color: var(--ok); }
-    .finding.low { border-left-color: var(--low); }
-    .finding.medium { border-left-color: var(--med); }
-    .finding.high { border-left-color: var(--high); }
-    .finding .row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
-    .finding .name { font-weight: 600; text-transform: capitalize; }
-    .badge { font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; }
-    .badge.high { color: var(--high); }
-    .badge.medium { color: var(--med); }
-    .badge.low { color: var(--low); }
-    .badge.ok { color: var(--ok); }
-    .finding p { margin: 0; color: var(--muted); font-size: 0.8rem; }
-    .answers { display: grid; gap: 8px; }
-    .answer { display: grid; grid-template-columns: 110px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
-    .answer:last-child { border-bottom: 0; }
-    .answer .k { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; padding-top: 2px; }
-    .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-    .tabs button {
-      background: transparent; border: 1px solid var(--line); color: var(--muted);
-      border-radius: 999px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: 0.75rem;
+    .finding::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--sev); }
+    .finding[data-sev="high"] { --sev: var(--orange); --sev-fg: #fff; }
+    .finding[data-sev="medium"] { --sev: var(--amber); --sev-fg: #1a1205; }
+    .finding[data-sev="low"] { --sev: var(--violet); --sev-fg: #fff; }
+    @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    details.finding > summary { display: block; list-style: none; cursor: pointer; }
+    details.finding > summary::-webkit-details-marker { display: none; }
+    .f-head { display: flex; align-items: flex-start; gap: 0.75rem; }
+    .chev { flex: none; align-self: center; color: var(--dim); transition: transform .2s; margin-left: 0.1rem; font-size: 1.1rem; }
+    details.finding[open] .chev { transform: rotate(90deg); }
+    details.finding:hover .chev { color: var(--text); }
+    .f-body { padding-top: 0.1rem; }
+    .num { flex: none; display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 50%; background: var(--sev); color: var(--sev-fg, #fff); font: 700 0.82rem var(--display); margin-top: 0.1rem; }
+    .f-title { flex: 1; min-width: 0; }
+    .f-title h3 { font-family: var(--display); font-weight: 600; font-size: 1.08rem; letter-spacing: -0.01em; line-height: 1.25; }
+    .f-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.25rem; font-size: 0.8rem; color: var(--muted); }
+    .chip {
+      display: inline-flex; align-items: center; padding: 0.1rem 0.55rem; border-radius: 999px;
+      font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; background: var(--sev); color: var(--sev-fg, #fff);
     }
-    .tabs button.active { border-color: var(--accent); color: var(--text); background: #2a1610; }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-    button.cta {
-      background: linear-gradient(180deg, #ff8a3d, var(--accent)); color: #1a0a08; border: 0;
-      border-radius: 8px; padding: 8px 14px; font-weight: 600; cursor: pointer; font: inherit;
+    .first-tag { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber); display: none; }
+    .first-tag.show { display: inline; }
+    .f-save { text-align: right; flex: none; }
+    .f-save b { display: block; font-family: var(--display); font-weight: 700; font-size: 1.28rem; letter-spacing: -0.02em; color: var(--amber); line-height: 1.15; white-space: nowrap; }
+    .f-save span { font-size: 0.7rem; color: var(--muted); }
+    .f-problem { margin-top: 0.45rem; margin-left: 2.5rem; padding-right: 1.6rem; color: var(--text-2); font-size: 0.88rem; }
+    .f-steps { display: grid; gap: 0.5rem; margin: 0.85rem 0 0; }
+    .f-steps div { display: grid; grid-template-columns: 7.6rem 1fr; gap: 0.7rem; padding: 0.55rem 0.7rem; border-radius: 0.7rem; background: rgba(255, 255, 255, 0.04); }
+    .f-steps dt { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding-top: 0.12rem; }
+    .f-steps dd { margin: 0; font-size: 0.86rem; color: var(--text-2); }
+    details.more { margin-top: 0.6rem; }
+    details.more summary {
+      display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; list-style: none; user-select: none;
+      font-size: 0.78rem; font-weight: 600; color: var(--muted); padding: 0.2rem 0;
     }
-    button.ghost {
-      background: transparent; border: 1px solid var(--line); color: var(--text);
-      border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit;
+    details.more summary::-webkit-details-marker { display: none; }
+    details.more summary:hover { color: var(--text); }
+    details.more summary svg { transition: transform .2s; }
+    details.more[open] summary svg { transform: rotate(90deg); }
+    .more-body { margin-top: 0.5rem; padding-top: 0.7rem; border-top: 1px solid var(--line); display: grid; gap: 0.8rem; }
+    .kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 0.6rem 1rem; }
+    .kv div { font-size: 0.8rem; color: var(--text-2); font-variant-numeric: tabular-nums; }
+    .kv small { display: block; font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); font-weight: 600; margin-bottom: 0.1rem; }
+    .six { display: grid; gap: 0.35rem; margin: 0; font-size: 0.78rem; }
+    .six div { display: grid; grid-template-columns: 8.2rem 1fr; gap: 0.6rem; }
+    .six dt { color: var(--dim); } .six dd { margin: 0; color: var(--text-2); }
+    .why { margin: 0; padding-left: 1.1rem; font-size: 0.78rem; color: var(--muted); }
+    .more-body h4 { font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); margin-bottom: 0.35rem; }
+
+    #allclear {
+      display: none; padding: 1.4rem 1.3rem; border-radius: var(--radius); text-align: center;
+      border: 1px solid rgba(61, 207, 142, 0.3); background: linear-gradient(180deg, rgba(61, 207, 142, 0.09), rgba(61, 207, 142, 0.02));
     }
-    #verify-out { margin-top: 10px; font-size: 0.85rem; color: var(--muted); white-space: pre-wrap; }
-    #verify-out.pass { color: var(--ok); }
-    #verify-out.fail { color: var(--high); }
-    .cost-line { color: var(--hot); font-size: 0.82rem; margin-top: 2px; }
-    .cost-total {
-      margin-top: 10px; padding: 10px 12px; border-radius: 8px;
-      border: 1px solid #3a2a18; background: #20140e; color: var(--hot); font-weight: 600;
-    }
-    .cost-total small { display: block; color: var(--muted); font-weight: 400; margin-top: 4px; }
-    .settings { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
-    .settings label { display: flex; flex-direction: column; gap: 4px; font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
-    .settings .wide { grid-column: 1 / -1; }
-    .settings select, .settings input {
-      background: #120e14; color: var(--text); border: 1px solid var(--line);
-      border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 0.85rem; text-transform: none; letter-spacing: 0;
-    }
-    .note { margin: 8px 0 0; color: var(--muted); font-size: 0.72rem; }
-    .save-banner {
-      background: linear-gradient(180deg, #2a1810, #20140e);
-      border-top: 1px solid #5a3a18;
-      color: var(--hot);
-      font-weight: 700;
-      padding: 12px 14px;
-      text-align: center;
-      font-size: 1.05rem;
-      letter-spacing: 0.01em;
-    }
-    .save-banner.none { color: var(--muted); font-weight: 500; }
-    .kit-rows { display: grid; gap: 6px; }
-    .kit-row, .kit-total {
-      display: grid; grid-template-columns: 1fr auto; gap: 8px;
-      align-items: baseline; font-size: 0.9rem;
-    }
-    .kit-row .src { display: block; color: var(--muted); font-size: 0.68rem; font-weight: 400; margin-top: 1px; }
-    .kit-row a { color: var(--low); text-decoration: none; }
-    .kit-row a:hover { text-decoration: underline; }
-    .kit-row .price, .kit-total .price { font-family: "IBM Plex Mono", monospace; font-weight: 600; white-space: nowrap; }
-    .kit-row .price.free { color: var(--ok); }
-    .kit-total {
-      margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
-      font-weight: 700;
-    }
+    #allclear.show { display: block; }
+    #allclear h3 { font-family: var(--display); font-size: 1.1rem; }
+    #allclear p { color: var(--muted); font-size: 0.86rem; margin-top: 0.3rem; }
+    #fine { display: none; align-items: center; flex-wrap: wrap; gap: 0.45rem; font-size: 0.78rem; color: var(--muted); }
+    #fine.show { display: flex; }
+    #fine .ok { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.22rem 0.65rem; border-radius: 99px; color: var(--green); background: rgba(61, 207, 142, 0.08); border: 1px solid rgba(61, 207, 142, 0.25); font-weight: 500; }
+
+    /* ---------- verify stepper ---------- */
+    .verify h2.h, .kit h2.h { margin-bottom: 0.2rem; }
+    .lead { color: var(--muted); font-size: 0.84rem; }
+    .steps { list-style: none; margin: 1rem 0 0; padding: 0; display: grid; gap: 0; }
+    .step { position: relative; display: grid; grid-template-columns: 2.1rem 1fr; gap: 0.9rem; padding-bottom: 1.2rem; }
+    .step:last-child { padding-bottom: 0; }
+    .step::before { content: ""; position: absolute; left: 1.02rem; top: 2.2rem; bottom: 0.15rem; width: 2px; background: var(--line-2); }
+    .step:last-child::before { display: none; }
+    .step.done::before { background: var(--ironbow-v); }
+    .step .dot { width: 2.1rem; height: 2.1rem; border-radius: 50%; display: grid; place-items: center; font: 700 0.9rem var(--display); color: var(--dim); border: 2px solid var(--line-2); background: var(--card); }
+    .step.active .dot { color: #1a1205; background: var(--amber); border-color: var(--amber); box-shadow: 0 0 0 0.3rem rgba(249, 178, 51, 0.15); }
+    .step.done .dot { color: #08180f; background: var(--green); border-color: var(--green); }
+    .step h3 { font-family: var(--display); font-weight: 600; font-size: 0.98rem; line-height: 2.1rem; }
+    .step p { color: var(--muted); font-size: 0.82rem; margin-top: -0.1rem; }
+    .step .row { margin-top: 0.6rem; display: flex; align-items: center; flex-wrap: wrap; gap: 0.7rem; }
+    .step:not(.active):not(.done) h3 { color: var(--dim); }
+    button.cta, button.ghost { cursor: pointer; border-radius: 0.75rem; padding: 0.55rem 1.05rem; font-size: 0.84rem; font-weight: 600; transition: transform .1s, filter .15s, background .15s; }
+    button.cta { border: 0; color: #fff; background: var(--ironbow); background-size: 130% 100%; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+    button.cta:hover { filter: brightness(1.1); } button.cta:active { transform: translateY(1px); }
+    button.ghost { background: transparent; border: 1px solid var(--line-2); color: var(--text); }
+    button.ghost:hover { background: rgba(255, 255, 255, 0.07); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+    button:focus-visible, summary:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+    .step .state { font-size: 0.78rem; color: var(--green); display: inline-flex; align-items: center; gap: 0.35rem; }
+    #verify-out { margin-top: 0.9rem; display: none; border-radius: 0.9rem; padding: 0.85rem 1rem; font-size: 0.84rem; border: 1px solid var(--line-2); background: rgba(255,255,255,0.04); }
+    #verify-out.show { display: block; }
+    #verify-out.pass { border-color: rgba(61, 207, 142, 0.4); background: rgba(61, 207, 142, 0.07); }
+    #verify-out.fail { border-color: rgba(236, 90, 38, 0.45); background: rgba(236, 90, 38, 0.08); }
+    #verify-out strong { display: block; font-family: var(--display); font-weight: 600; font-size: 0.98rem; margin-bottom: 0.4rem; }
+    #verify-out ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; color: var(--text-2); }
+    #verify-out li { display: flex; justify-content: space-between; gap: 1rem; }
+    #verify-out li span:last-child { color: var(--muted); text-align: right; }
+
+    /* ---------- kit ---------- */
+    .kit-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 1.1rem; margin-top: 0.9rem; align-items: stretch; }
+    @media (max-width: 560px) { .kit-grid { grid-template-columns: 1fr; } }
+    .kit-rows { display: grid; gap: 0.2rem; align-content: start; }
+    .kit-row { display: flex; justify-content: space-between; gap: 0.8rem; padding: 0.5rem 0; border-bottom: 1px solid var(--line); font-size: 0.88rem; }
+    .kit-row .nm { font-weight: 600; }
+    .kit-row small { display: block; font-size: 0.68rem; color: var(--dim); font-weight: 400; margin-top: 0.05rem; }
+    .kit-row small a { color: var(--dim); text-decoration-color: rgba(255,255,255,.25); }
+    .kit-row small a:hover { color: var(--muted); }
+    .kit-row b { font-family: var(--display); font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .kit-row b.free { color: var(--green); }
+    .kit-total { display: flex; justify-content: space-between; padding-top: 0.65rem; font-weight: 700; font-size: 0.95rem; }
+    .kit-total b { font-family: var(--display); font-size: 1.15rem; }
     .payback {
-      margin-top: 10px; padding: 10px 12px; border-radius: 8px;
-      border: 1px solid #3a2a18; background: #20140e;
-      color: var(--hot); font-weight: 700; font-size: 1.02rem;
+      border-radius: 1rem; padding: 1rem 1.05rem; display: flex; flex-direction: column; justify-content: center; gap: 0.2rem; min-height: 7.5rem;
+      background: var(--ironbow); box-shadow: 0 0.8rem 2rem rgba(163, 32, 127, 0.25);
     }
-    .payback.none { color: var(--muted); font-weight: 500; border-color: var(--line); background: transparent; }
-    footer { padding: 0 24px 24px; color: var(--muted); font-size: 0.75rem; }
+    .payback small { font-size: 0.72rem; font-weight: 600; opacity: 0.92; letter-spacing: 0.04em; }
+    .payback b { font-family: var(--display); font-weight: 700; font-size: 1.9rem; line-height: 1.1; letter-spacing: -0.02em; }
+    .payback span { font-size: 0.78rem; opacity: 0.92; }
+    .payback.none { background: linear-gradient(180deg, #24242a, #1b1b20); box-shadow: none; border: 1px solid var(--line); }
+    .payback.none b { font-size: 1.1rem; color: var(--muted); }
+    .src-note { margin-top: 0.8rem; font-size: 0.68rem; color: var(--dim); }
+
+    /* ---------- settings drawer ---------- */
+    .scrim { position: fixed; inset: 0; z-index: 40; background: rgba(0, 0, 0, 0.55); opacity: 0; pointer-events: none; transition: opacity .25s; }
+    .scrim.open { opacity: 1; pointer-events: auto; }
+    .drawer {
+      position: fixed; z-index: 50; top: 0; right: 0; bottom: 0; width: min(26rem, 100vw); overflow-y: auto;
+      background: linear-gradient(180deg, #1b1b20, #101013); border-left: 1px solid var(--line-2);
+      padding: 1.3rem 1.3rem 2rem; transform: translateX(104%); transition: transform .28s cubic-bezier(.2,.8,.2,1);
+      visibility: hidden;
+    }
+    .drawer.open { transform: none; visibility: visible; }
+    .drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.3rem; }
+    .x { cursor: pointer; border: 1px solid var(--line-2); background: transparent; width: 2.1rem; height: 2.1rem; border-radius: 50%; display: grid; place-items: center; }
+    .x:hover { background: rgba(255,255,255,0.08); }
+    .form { display: grid; gap: 1rem; margin-top: 1.2rem; }
+    .field label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 0.1rem; }
+    .field .hint { display: block; font-size: 0.72rem; color: var(--dim); margin-bottom: 0.4rem; }
+    .field select, .field input {
+      width: 100%; background: #0d0d10; border: 1px solid var(--line-2); border-radius: 0.65rem; padding: 0.6rem 0.75rem; font-size: 0.9rem; color: var(--text);
+    }
+    .field select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 1.1rem) 55%, calc(100% - 0.8rem) 55%; background-size: 0.3rem 0.3rem; background-repeat: no-repeat; padding-right: 2rem; }
+    .field input::placeholder { color: var(--dim); }
+    .seg { display: grid; grid-template-columns: repeat(3, 1fr); padding: 0.2rem; gap: 0.2rem; border-radius: 0.8rem; background: #0d0d10; border: 1px solid var(--line-2); }
+    .seg button { cursor: pointer; border: 0; background: transparent; color: var(--muted); border-radius: 0.6rem; padding: 0.5rem 0.4rem; font-size: 0.86rem; font-weight: 600; transition: background .15s, color .15s; }
+    .seg button:hover { color: var(--text); }
+    .seg button[aria-checked="true"] { color: #fff; background: var(--ironbow); text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+    .drawer .note { margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: 0.72rem; line-height: 1.55; color: var(--dim); }
+    .saved { font-size: 0.74rem; color: var(--green); min-height: 1.1rem; margin-top: 0.2rem; }
+
+    footer { max-width: 1720px; margin: 0 auto; padding: 0.4rem clamp(1rem, 2.4vw, 2.2rem) 2.2rem; color: var(--dim); font-size: 0.72rem; }
+
+    @media (max-width: 600px) {
+      .tagline, .pill.hide-s { display: none; }
+      .status { width: 100%; order: 3; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+      .status::-webkit-scrollbar { display: none; }
+      .f-head { flex-wrap: wrap; }
+      .f-head { position: relative; padding-right: 1.4rem; }
+      .chev { position: absolute; right: 0; top: 0.35rem; }
+      .f-save { margin-left: 2.5rem; text-align: left; flex-basis: 100%; display: flex; align-items: baseline; gap: 0.4rem; }
+      .thermo { margin-left: -1rem; margin-right: -1rem; border-radius: 0; border-left: 0; border-right: 0; }
+      .f-save b { display: inline; }
+      .f-steps div { grid-template-columns: 1fr; gap: 0.15rem; }
+      .six div { grid-template-columns: 1fr; gap: 0; }
+      .legend .hint { margin-left: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
   </style>
 </head>
 <body>
-  <header>
+  <header class="topbar">
     <div class="brand">
-      <h1>SNUG</h1>
-      <span>Local edge AI thermal home check</span>
+      <div class="wordmark">Snug</div>
+      <span class="tagline">Thermal home check · Junction 2026</span>
     </div>
-    <div class="meta">
-      <div>FPS <b id="fps">—</b></div>
-      <div>Indoor <b id="tin">—</b></div>
-      <div>Outdoor <b id="tout">—</b></div>
-      <div>Detect <b id="det">—</b></div>
-      <div>Saves <b id="cost-head">—</b></div>
+    <div class="status" aria-live="off">
+      <span class="pill" id="p-source"><i class="dot"></i><b id="t-source">Connecting…</b></span>
+      <span class="pill"><b id="t-fps">–</b> fps</span>
+      <span class="pill hide-s">AI <b id="t-ai">–</b></span>
+      <span class="pill hide-s">Indoor <b id="t-in">–</b> · Outdoor <b id="t-out">–</b></span>
+      <span class="pill safe"><svg class="i" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Runs 100% on device</span>
     </div>
+    <button class="btn-settings" id="open-settings" type="button" aria-haspopup="dialog" aria-controls="drawer">
+      <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      Settings
+    </button>
   </header>
-  <main>
-    <section>
-      <div class="card">
-        <h2>Live thermogram</h2>
-        <div class="stream-wrap">
-          <img id="stream" alt="Live thermal stream" src="/api/stream.mjpeg" />
-          <div class="save-banner" id="save-banner">Fixing these saves —</div>
+
+  <main class="layout">
+    <div class="col-hero">
+      <div class="headline skeleton" id="headline">
+        <p class="eyebrow">Your home, scanned by AI</p>
+        <h1 class="title"><span id="h-main">Scanning your home…</span><span class="a" id="h-sub">&nbsp;</span></h1>
+        <p class="sub" id="h-meta"></p>
+        <p class="warn" id="h-warn">The indoor–outdoor temperature gap is small (under ~10 °C), so the estimate is uncertain. Scan again on a colder day.</p>
+      </div>
+      <figure class="thermo" id="thermo">
+        <img id="stream" alt="Live thermal image of the house with numbered markers on each heat leak" src="/api/stream.mjpeg" />
+        <div class="wait" id="wait"><div>Waiting for the thermal camera…</div></div>
+      </figure>
+      <div class="legend">
+        <span class="scale">Cooler <i></i> Hotter</span>
+        <span class="hint"><b>1</b> Numbers match the findings →</span>
+      </div>
+    </div>
+
+    <div class="col-side">
+      <div class="section-head findings-head">
+        <h2 class="h">What we found</h2>
+        <span class="count" id="count"></span>
+      </div>
+      <div id="findings"></div>
+      <div id="allclear"><h3>No leaks found — looking good</h3><p>Every part we checked has a normal heat pattern. Keep scanning other rooms or walls.</p></div>
+      <div id="fine"></div>
+
+      <section class="card verify" aria-labelledby="v-title">
+        <h2 class="h" id="v-title">Did the fix work?</h2>
+        <p class="lead">Two quick scans prove it, with the same camera angle both times.</p>
+        <ol class="steps">
+          <li class="step active" id="step1">
+            <span class="dot" id="dot1">1</span>
+            <div>
+              <h3>Scan before the fix</h3>
+              <p>Point at the leak and save a baseline.</p>
+              <div class="row"><button class="cta" id="btn-before" type="button">Save “before” scan</button><span class="state" id="s1-state"></span></div>
+            </div>
+          </li>
+          <li class="step" id="step2">
+            <span class="dot" id="dot2">2</span>
+            <div>
+              <h3>Fix it, then scan again</h3>
+              <p>Seal or insulate, wait a few minutes, then compare.</p>
+              <div class="row"><button class="ghost" id="btn-after" type="button" disabled>Check the fix</button></div>
+            </div>
+          </li>
+        </ol>
+        <div id="verify-out" role="status"></div>
+      </section>
+
+      <section class="card kit" aria-labelledby="k-title">
+        <h2 class="h" id="k-title">What it costs to scan your own home</h2>
+        <p class="lead">Off-the-shelf hardware plus free, open-source software.</p>
+        <div class="kit-grid">
+          <div>
+            <div class="kit-rows" id="kit-rows"></div>
+            <div class="kit-total"><span>Total</span><b id="kit-total">–</b></div>
+          </div>
+          <div class="payback none" id="kit-payback"><small>Payback</small><b>Waiting for a scan…</b></div>
         </div>
-        <div class="legend">
-          <span><i class="dot" style="background:var(--ok)"></i>Normal</span>
-          <span><i class="dot" style="background:var(--hot)"></i>Insulation gap</span>
-          <span><i class="dot" style="background:var(--med)"></i>Thermal bridge</span>
-          <span><i class="dot" style="background:var(--high)"></i>Air leak</span>
-        </div>
-      </div>
-      <div class="card" style="margin-top:16px">
-        <h2>Before / after verification</h2>
-        <p style="margin:0 0 8px;color:var(--muted);font-size:0.85rem">Capture a baseline, apply the fix on the model house (or restart the simulator with <code>--no-defects</code>), then re-scan. ΔT and anomaly area should drop.</p>
-        <div class="actions">
-          <button class="cta" id="btn-before" type="button">Capture baseline</button>
-          <button class="ghost" id="btn-after" type="button">Verify re-scan</button>
-        </div>
-        <div id="verify-out"></div>
-      </div>
-    </section>
-    <section>
-      <div class="card">
-        <h2>Ranked findings</h2>
-        <div class="ranked" id="ranked"></div>
-        <div class="cost-total" id="cost-total">Fixing these saves — waiting for a scan…</div>
-      </div>
-      <div class="card" style="margin-top:16px">
-        <h2>Kit cost</h2>
-        <div class="kit-rows" id="kit-rows"></div>
-        <div class="kit-total" id="kit-total"></div>
-        <div class="payback none" id="kit-payback">No leaks found</div>
-        <p class="note" id="kit-note"></p>
-      </div>
-      <div class="card" style="margin-top:16px">
-        <h2>Six answers</h2>
-        <div class="tabs" id="tabs"></div>
-        <div class="answers" id="answers"></div>
-      </div>
-      <div class="card" style="margin-top:16px">
-        <h2>Cost estimate settings</h2>
-        <form class="settings" id="cost-form">
-          <label>Locality
-            <select id="set-locality" name="locality"></select>
-          </label>
-          <label>Heating type
-            <select id="set-heating" name="heating_type"></select>
-          </label>
-          <label>Indoor T_in (°C)
-            <input id="set-tin" name="t_in_c" type="number" step="0.5" value="21" />
-          </label>
-          <label>Outdoor T_out (°C)
-            <input id="set-tout" name="t_out_c" type="number" step="0.5" placeholder="auto (measured)" />
-          </label>
-          <label class="wide">Price override (€/kWh), optional
-            <input id="set-price" name="price_eur_per_kwh" type="number" step="0.001" min="0" placeholder="default from Tilastokeskus" />
-          </label>
-        </form>
-        <p class="note" id="cost-note">Estimate only — Finnish climate (FMI S17 1991–2020) and official energy prices. Air leaks may be underestimated. Needs scan ΔT ≳ 10 °C.</p>
-      </div>
-    </section>
+        <p class="src-note" id="kit-note"></p>
+      </section>
+    </div>
   </main>
-  <footer>Everything runs on-device. Extra heating cost and Q = U·A·ΔT are labelled estimates, not a certified energy audit. Detector was trained on synthetic frames and should be fine-tuned on real TC001 images.</footer>
+  <footer>Savings are estimates (surface-temperature method, Finnish climate data), not a certified energy audit. The model house uses assumed real-world sizes. Snug detects with a tiny neural network that runs on the Arduino UNO Q — nothing leaves your home.</footer>
+
+  <div class="scrim" id="scrim"></div>
+  <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title" tabindex="-1">
+    <div class="drawer-head">
+      <h2 class="h" id="d-title">Settings</h2>
+      <button class="x" id="close-settings" type="button" aria-label="Close settings"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <p class="lead">These tune the savings estimate. Changes apply instantly.</p>
+    <form class="form" id="cost-form" onsubmit="return false">
+      <div class="field"><label for="set-locality">Where is the house?</label><span class="hint">Colder places lose more heat, so savings are bigger.</span><select id="set-locality" name="locality"></select></div>
+      <div class="field"><label for="set-heating">How is it heated?</label><span class="hint">A heat pump needs less energy per kWh of heat.</span><select id="set-heating" name="heating_type"></select></div>
+      <div class="field">
+        <label id="sens-label">How sensitive should the AI be?</label>
+        <span class="hint" id="sens-hint">Higher finds subtler leaks but may flag more false alarms.</span>
+        <div class="seg" id="sens" role="radiogroup" aria-labelledby="sens-label">
+          <button type="button" role="radio" data-v="low">Low</button>
+          <button type="button" role="radio" data-v="normal">Normal</button>
+          <button type="button" role="radio" data-v="high">High</button>
+        </div>
+      </div>
+      <div class="two">
+        <div class="field"><label for="set-tin">Indoor °C</label><span class="hint" id="tin-hint">Empty = auto (measured).</span><input id="set-tin" name="t_in_c" type="number" step="0.5" placeholder="auto" inputmode="decimal" /></div>
+        <div class="field"><label for="set-tout">Outdoor °C</label><span class="hint">Empty = measured.</span><input id="set-tout" name="t_out_c" type="number" step="0.5" placeholder="auto" inputmode="decimal" /></div>
+      </div>
+      <div class="field"><label for="set-price">Energy price (€/kWh)</label><span class="hint">Optional. Empty = Finnish average price.</span><input id="set-price" name="price_eur_per_kwh" type="number" step="0.001" min="0" placeholder="default" inputmode="decimal" /></div>
+      <div class="saved" id="saved" aria-live="polite"></div>
+    </form>
+    <p class="note" id="cost-note"></p>
+  </aside>
+
   <script>
     const $ = (id) => document.getElementById(id);
-    let state = { findings: [], answers: [] };
-    let selected = 0;
-    let catalogueReady = false;
+    let state = null;
     let settingsDirty = false;
+    let catalogueReady = false;
+    let hasBefore = false;
+    const cards = new Map();
+    const lastText = new WeakMap();
 
-    function sevClass(f) {
-      if (!f || f.normal || f.defect === "normal") return "ok";
-      return f.severity || "ok";
+    /* ---- tiny helpers: write to the DOM only when something changed (no flicker) ---- */
+    function setText(el, value) {
+      const v = value == null ? "" : String(value);
+      if (el.textContent !== v) el.textContent = v;
     }
-    function fmt(n, d=1) { return (n == null || Number.isNaN(n)) ? "—" : Number(n).toFixed(d); }
-    function labelDefect(d) {
-      return ({ insulation_gap: "Insulation gap", thermal_bridge: "Thermal bridge", air_leak: "Air leak", normal: "Normal" })[d] || d;
+    function setAttr(el, name, value) { if (el.getAttribute(name) !== value) el.setAttribute(name, value); }
+    function toggle(el, cls, on) { if (el.classList.contains(cls) !== !!on) el.classList.toggle(cls, !!on); }
+    function el(tag, cls, text) {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text != null) n.textContent = text;
+      return n;
     }
+    const fmt = (n, d = 1) => (n == null || Number.isNaN(Number(n))) ? "–" : Number(n).toFixed(d);
+    const nf = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 0 });
+    const eur = (n) => "€" + nf.format(n);
+    function eurRange(lo, hi) {
+      if (!(hi > 0)) return "€0";
+      return lo === hi ? eur(hi) : `${eur(lo)}\u2060–\u2060${nf.format(hi)}`;
+    }
+    const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+    const nice = (s) => cap(String(s || "").replaceAll("_", " "));
 
-    function render() {
-      $("fps").textContent = fmt(state.fps, 1);
-      $("tin").textContent = state.meta?.indoor_c != null ? fmt(state.meta.indoor_c) + " °C" : "—";
-      $("tout").textContent = state.meta?.outdoor_c != null ? fmt(state.meta.outdoor_c) + " °C" : "—";
-      $("det").textContent = state.detector?.model ? (state.detector.mode + " + model") : (state.detector?.mode || "rois");
-      const tot = state.cost;
-      $("cost-head").textContent = tot && tot.cost_eur_high
-        ? `€${tot.cost_eur_low_display}–${tot.cost_eur_high_display}/yr`
-        : (tot && tot.short ? tot.short.replace("Fixing these saves ~", "") : "—");
-      const totalBox = $("cost-total");
-      if (tot && tot.label) {
-        const warn = tot.reliable === false ? "<small>Uncertain: scan indoor–outdoor ΔT is below ~10 °C.</small>" : "";
-        totalBox.innerHTML = tot.label + warn;
+    const DEFECT = { insulation_gap: "Insulation gap", thermal_bridge: "Thermal bridge", air_leak: "Air leak", normal: "Normal" };
+    const ELEMENT = { wall: "wall", window: "window", door: "door", roof: "roof", corner: "corner" };
+    const PROBLEM = {
+      insulation_gap: (e) => `Heat is escaping through this ${e}. The insulation looks thin or missing.`,
+      thermal_bridge: (e) => `Heat is taking a shortcut through the structure of this ${e} (a “cold bridge”).`,
+      air_leak: (e) => `Warm air is slipping out through gaps around this ${e}. You would feel it as a draught.`,
+    };
+    const PROBLEM_COLD = {
+      insulation_gap: (e) => `This ${e} is colder than it should be, so heat is leaking out. The insulation looks thin or missing.`,
+      thermal_bridge: (e) => `This ${e} has a cold line where heat takes a shortcut through the structure (a “cold bridge”).`,
+      air_leak: (e) => `Cold air is getting in around this ${e}. You would feel it as a draught.`,
+    };
+    const CHECK_COLD = {
+      insulation_gap: "Scan the same spot again after the fix. The cold patch should shrink and warm up.",
+      thermal_bridge: "Scan the joint from the same angle. The cold line should fade away.",
+      air_leak: "Scan the seal again. The cold streaks should disappear.",
+    };
+    const CHECK = {
+      insulation_gap: "Scan the same spot again after the fix. The hot patch should shrink and fade.",
+      thermal_bridge: "Scan the joint from the same angle. The warm line should fade away.",
+      air_leak: "Scan the seal again. The warm streaks should disappear.",
+    };
+    const isDefect = (f) => !f.normal && f.defect !== "normal";
+
+    /* ---------- headline ---------- */
+    function renderHeadline(defects, tot) {
+      const head = $("headline");
+      toggle(head, "skeleton", false);
+      const n = defects.length;
+      const hi = tot && tot.cost_eur_high_display, lo = tot && tot.cost_eur_low_display;
+      let main, sub;
+      if (n === 0) {
+        main = "No leaks found.";
+        sub = "Looking good.";
+      } else {
+        main = `We found ${n} heat ${n === 1 ? "leak" : "leaks"}.`;
+        sub = hi > 0 ? `Fixing ${n === 1 ? "it" : "them"} saves ~${eurRange(lo, hi)}\u00a0a\u00a0year.` : "The losses are small, so nothing is costly yet.";
       }
-      const banner = $("save-banner");
-      if (banner) {
-        const text = (tot && (tot.banner || tot.short || tot.label)) || "No leaks found";
-        banner.textContent = text;
-        banner.className = "save-banner" + ((tot && tot.cost_eur_high > 0) ? "" : " none");
+      setText($("h-main"), main);
+      setText($("h-sub"), sub);
+      const bits = [];
+      if (n && hi > 0 && tot) {
+        bits.push(["est", "Estimate"]);
+        bits.push(["t", [tot.locality_name && `${tot.locality_name} climate`, tot.heating_name].filter(Boolean).join(" · ")]);
+      } else if (n === 0) {
+        bits.push(["t", "Every part we checked shows a normal heat pattern."]);
       }
-      renderKit(state);
+      const key = JSON.stringify(bits);
+      if (lastText.get($("h-meta")) !== key) {
+        lastText.set($("h-meta"), key);
+        const meta = $("h-meta");
+        meta.replaceChildren(...bits.map(([k, t]) => k === "est" ? el("span", "est", t) : el("span", "", t)));
+      }
+      toggle($("h-warn"), "show", n > 0 && tot && tot.reliable === false);
+    }
 
-      fillSettings(state);
+    /* ---------- finding cards (keyed, updated in place) ---------- */
+    function kvItem(label) {
+      const d = el("div");
+      const s = el("small", "", label);
+      const v = el("span");
+      d.append(s, v);
+      d._v = v; d._s = s;
+      return d;
+    }
+    function createCard() {
+      const root = el("details", "finding");
+      const sum0 = el("summary", "f-sum");
+      const head = el("div", "f-head");
+      const num = el("span", "num");
+      const title = el("div", "f-title");
+      const h3 = el("h3");
+      const meta = el("div", "f-meta");
+      const type = el("span", "type");
+      const chip = el("span", "chip");
+      const first = el("span", "first-tag", "Fix this first");
+      meta.append(chip, type, first);
+      title.append(h3, meta);
+      const save = el("div", "f-save");
+      const saveB = el("b");
+      const saveS = el("span", "", "saved per year");
+      save.append(saveB, saveS);
+      const chev = el("span", "chev");
+      chev.innerHTML = '<svg class="i" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
+      head.append(num, title, save, chev);
+      const problem = el("p", "f-problem");
+      const steps = el("dl", "f-steps");
+      const todo = el("div"), todoT = el("dt", "", "What to do"), todoD = el("dd");
+      todo.append(todoT, todoD);
+      const check = el("div"), checkT = el("dt", "", "How to check it worked"), checkD = el("dd");
+      check.append(checkT, checkD);
+      steps.append(todo, check);
 
-      const ranked = $("ranked");
-      ranked.innerHTML = "";
-      (state.findings || []).forEach((f, i) => {
-        const el = document.createElement("div");
-        el.className = "finding " + sevClass(f);
-        el.innerHTML = `
-          <div class="row">
-            <div class="name">${f.name.replaceAll("_"," ")}</div>
-            <div class="badge ${sevClass(f)}">${f.normal ? "OK" : (f.severity || "").toUpperCase()}</div>
-          </div>
-          <p>${f.hud || labelDefect(f.defect)} · ΔT ${fmt(f.delta_c)} °C · Q≈ ${fmt(f.q_watts, 3)} W (est.)</p>
-          <p class="cost-line">${f.cost_label || f.cost?.label || (f.normal ? "Est. extra heating cost: €0 / year" : "")}</p>
-          <p>${f.fix}</p>`;
-        el.addEventListener("click", () => { selected = i; renderAnswers(); });
-        ranked.appendChild(el);
+      const details = el("details", "more");
+      const sum = el("summary");
+      sum.innerHTML = '<svg class="i" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>Details';
+      const body = el("div", "more-body");
+      const kv = el("div", "kv");
+      const items = {
+        dt: kvItem("Difference from reference"), area: kvItem("Affected area"), surf: kvItem("Surface temperature"),
+        q: kvItem("Heat loss (est.)"), u: kvItem("U-value (est.)"), kwh: kvItem("Heat lost per year (est.)"),
+      };
+      Object.values(items).forEach((i) => kv.append(i));
+      const whyWrap = el("div");
+      const whyH = el("h4", "", "Why the AI thinks so");
+      const why = el("ul", "why");
+      whyWrap.append(whyH, why);
+      const sixWrap = el("div");
+      const sixH = el("h4", "", "The AI’s six answers");
+      const six = el("dl", "six");
+      const sixRows = ["Building element", "Is the pattern normal?", "Type of problem", "How severe?", "Fix to prioritise", "How to verify"].map((k) => {
+        const row = el("div"); const dt = el("dt", "", k); const dd = el("dd"); row.append(dt, dd); six.append(row); return dd;
       });
-      renderAnswers();
+      sixWrap.append(sixH, six);
+      body.append(kv, whyWrap, sixWrap);
+      details.append(sum, body);
+      const fbody = el("div", "f-body");
+      fbody.append(steps, details);
+      sum0.append(head, problem);
+      root.append(sum0, fbody);
+      return { root, num, h3, chip, type, first, saveB, saveS, problem, todoD, checkD, items, why, sixRows };
     }
-
-    function renderAnswers() {
-      const findings = state.findings || [];
-      const tabs = $("tabs");
-      tabs.innerHTML = "";
-      findings.forEach((f, i) => {
-        const b = document.createElement("button");
-        b.textContent = f.name.replaceAll("_"," ");
-        b.className = i === selected ? "active" : "";
-        b.addEventListener("click", () => { selected = i; renderAnswers(); });
-        tabs.appendChild(b);
+    function updateCard(c, f, idx) {
+      const sev = ["high", "medium", "low"].includes(f.severity) ? f.severity : "high";
+      setAttr(c.root, "data-sev", sev);
+      setText(c.num, idx);
+      setText(c.h3, nice(f.name));
+      setText(c.chip, sev);
+      const cold = f.direction === "cold";
+      setText(c.type, `${DEFECT[f.defect] || nice(f.defect)} · ${cold ? "cold spot" : "warm spot"}`);
+      toggle(c.first, "show", idx === 1);
+      const cost = f.cost || {};
+      const hi = cost.cost_eur_high_display, lo = cost.cost_eur_low_display;
+      const has = cost.ok !== false && hi > 0;
+      setText(c.saveB, has ? eurRange(lo, hi) : "–");
+      setText(c.saveS, has ? "saved per year (est.)" : "saving too small to estimate");
+      const e = ELEMENT[f.element] || f.element || "area";
+      setText(c.problem, ((cold ? PROBLEM_COLD : PROBLEM)[f.defect] || (() => "This area has an unusual heat pattern."))(e));
+      setText(c.todoD, cap(f.fix || "Inspect this area."));
+      setText(c.checkD, (cold ? CHECK_COLD : CHECK)[f.defect] || "Scan the same spot again after the fix.");
+      const it = c.items;
+      setText(it.dt._v, `${fmt(Math.abs(f.delta_c))} °C ${cold ? "colder" : "warmer"}`);
+      setText(it.dt._s, cold ? "Colder than reference" : "Warmer than reference");
+      setText(it.area._v, `${fmt((f.anomaly_frac || 0) * 100, 0)} % of this part`);
+      setText(it.surf._v, `${fmt(f.t_surface_c ?? f.mean_c)} °C (reference ${fmt(f.t_ref_surface_c ?? f.reference_c)} °C)`);
+      setText(it.q._v, `${fmt(f.q_watts, 3)} W`);
+      setText(it.u._v, cost.u_defect != null ? `${fmt(cost.u_defect, 1)} W/m²K (ref. ${fmt(cost.u_ref, 1)})` : `${fmt(f.u_value, 2)} W/m²K`);
+      setText(it.kwh._v, cost.energy_kwh != null ? `${nf.format(cost.energy_kwh)} kWh` : "–");
+      const why = (f.reasons || []).join("\n");
+      if (lastText.get(c.why) !== why) {
+        lastText.set(c.why, why);
+        c.why.replaceChildren(...(f.reasons || []).map((r) => el("li", "", cap(r))));
+      }
+      const rows = [nice(f.element), "No", DEFECT[f.defect] || nice(f.defect), cap(sev), cap(f.fix || "–"), cap(f.verify || "–")];
+      rows.forEach((v, i) => setText(c.sixRows[i], v));
+    }
+    function renderFindings(list) {
+      const defects = list.filter(isDefect);
+      const normals = list.filter((f) => !isDefect(f));
+      const box = $("findings");
+      const keys = new Set(defects.map((f) => f.name));
+      for (const [k, c] of cards) if (!keys.has(k)) { c.root.remove(); cards.delete(k); }
+      defects.forEach((f, i) => {
+        let c = cards.get(f.name);
+        if (!c) { c = createCard(); cards.set(f.name, c); if (i === 0 && cards.size === 1) c.root.open = true; }
+        updateCard(c, f, i + 1);
+        const cur = box.children[i];
+        if (cur !== c.root) box.insertBefore(c.root, cur || null);
       });
-      const f = findings[selected] || findings[0];
-      const box = $("answers");
-      if (!f) { box.innerHTML = "<p style='color:var(--muted)'>Waiting for frames…</p>"; return; }
-      const rows = [
-        ["Building element", f.element],
-        ["Pattern normal?", f.normal ? "Yes" : "No"],
-        ["Likely defect", labelDefect(f.defect)],
-        ["Severity", f.normal ? "OK" : String(f.severity).toUpperCase() + `  (ΔT ${fmt(f.delta_c)} °C, anomaly ${fmt(f.anomaly_frac*100,0)}%)`],
-        ["Priority fix", f.fix],
-        ["How to verify", f.verify],
-        ["You save", f.cost_short || f.cost?.short || f.answers_cost || "—"],
-      ];
-      box.innerHTML = rows.map(([k,v]) => `<div class="answer"><div class="k">${k}</div><div>${v}</div></div>`).join("");
+      toggle($("allclear"), "show", defects.length === 0 && list.length > 0);
+      setText($("count"), defects.length ? "Tap a card for the fix" : "");
+      const fine = $("fine");
+      const fineKey = normals.map((f) => f.name).join("|");
+      if (lastText.get(fine) !== fineKey) {
+        lastText.set(fine, fineKey);
+        const kids = [];
+        if (normals.length) {
+          kids.push(el("span", "", "Checked and fine:"));
+          normals.forEach((f) => {
+            const s = el("span", "ok");
+            s.innerHTML = '<svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+            s.append(document.createTextNode(nice(f.name)));
+            kids.push(s);
+          });
+        }
+        fine.replaceChildren(...kids);
+      }
+      toggle(fine, "show", normals.length > 0);
+      return defects;
     }
 
-    function vatTag(vat) {
-      if (vat === "excluded") return "excl. VAT";
-      if (vat === "included") return "VAT included";
-      return "";
+    /* ---------- status bar ---------- */
+    function renderStatus(st) {
+      const src = st.meta && st.meta.source;
+      const sim = src === "simulate";
+      const pill = $("p-source");
+      toggle(pill, "sim", sim);
+      toggle(pill, "live", !sim && !!src);
+      setText($("t-source"), !src ? "Connecting…" : sim ? "Simulator" : "Live · TC001");
+      setText($("t-fps"), st.fps != null ? fmt(st.fps, st.fps < 10 ? 1 : 0) : "–");
+      const lat = st.latencies_ms || {};
+      const ai = (lat.detect_ms || 0) + (lat.analyze_ms || 0);
+      setText($("t-ai"), lat.detect_ms != null ? `${fmt(ai, ai < 10 ? 1 : 0)} ms` : "–");
+      setText($("t-in"), st.meta && st.meta.indoor_c != null ? `${fmt(st.meta.indoor_c, 0)} °C` : "–");
+      setText($("t-out"), st.meta && st.meta.outdoor_c != null ? `${fmt(st.meta.outdoor_c, 0)} °C` : "–");
     }
+
+    /* ---------- kit & payback ---------- */
+    const KIT_ROLE = { tc001: "Thermal camera", uno_q_2gb: "Edge AI computer", uno_q_4gb: "Edge AI computer", snug: "Software · open source" };
+    const vatTag = (v) => v === "excluded" ? "excl. VAT" : v === "included" ? "incl. VAT" : "";
     function renderKit(st) {
       const kit = st.kit;
+      if (!kit) return;
+      const sig = JSON.stringify([kit.items, kit.total_label]);
       const rows = $("kit-rows");
-      const totalEl = $("kit-total");
-      const pb = $("kit-payback");
-      const note = $("kit-note");
-      if (!kit || !rows) return;
-      rows.innerHTML = (kit.items || []).map((it) => {
-        const vat = vatTag(it.vat);
-        const src = it.source_url
-          ? `<a href="${it.source_url}" target="_blank" rel="noopener">${it.source_label || it.source_url}</a>`
-          : (it.source_label || "");
-        const extra = [vat, it.note].filter(Boolean).join(" · ");
-        const free = Number(it.price_eur) === 0;
-        return `<div class="kit-row">
-          <div>${it.name}${src ? `<span class="src">${src}${extra ? " · " + extra : ""}</span>` : (extra ? `<span class="src">${extra}</span>` : "")}</div>
-          <div class="price${free ? " free" : ""}">${it.price_label || ("€" + it.price_eur)}</div>
-        </div>`;
-      }).join("");
-      totalEl.innerHTML = `<div>Total</div><div class="price">${kit.total_label || ""}</div>`;
+      if (lastText.get(rows) !== sig) {
+        lastText.set(rows, sig);
+        rows.replaceChildren(...(kit.items || []).map((it) => {
+          const r = el("div", "kit-row");
+          const left = el("div");
+          left.append(el("div", "nm", it.name.replace(/\s*\(open source\)/i, "")));
+          const small = el("small");
+          const bits = [KIT_ROLE[it.id], vatTag(it.vat)].filter(Boolean).join(" · ");
+          small.append(document.createTextNode(bits));
+          if (it.source_url && /^https?:\/\//.test(it.source_url)) {
+            small.append(document.createTextNode(" · "));
+            const a = el("a", "", "source");
+            a.href = it.source_url; a.target = "_blank"; a.rel = "noopener";
+            small.append(a);
+          }
+          left.append(small);
+          const price = el("b", Number(it.price_eur) === 0 ? "free" : "", it.price_label || eur(it.price_eur));
+          r.append(left, price);
+          return r;
+        }));
+      }
+      setText($("kit-total"), kit.total_label || "");
       const pay = kit.payback || {};
-      pb.textContent = pay.label || "No leaks found";
-      pb.className = "payback" + (pay.months == null ? " none" : "");
-      note.textContent = kit.vat_note || "";
+      const box = $("kit-payback");
+      const has = pay.months != null;
+      toggle(box, "none", !has);
+      const key = has ? `m${Math.max(1, Math.round(pay.months))}|${Math.round(pay.months_fast || 0)}|${Math.round(pay.months_slow || 0)}` : "none";
+      if (lastText.get(box) !== key) {
+        lastText.set(box, key);
+        if (has) {
+          const m = Math.max(1, Math.round(pay.months));
+          const lo = Math.max(1, Math.round(pay.months_fast || pay.months)), hi = Math.max(1, Math.round(pay.months_slow || pay.months));
+          box.replaceChildren(el("small", "", "The kit pays for itself in"), el("b", "", `~${m} ${m === 1 ? "month" : "months"}`),
+            el("span", "", lo !== hi ? `Range ${lo}–${hi} months · estimate` : "Estimate"));
+        } else {
+          box.replaceChildren(el("small", "", "Payback"), el("b", "", "Appears once a leak is found"));
+        }
+      }
+      setText($("kit-note"), kit.vat_note || "");
     }
 
+    /* ---------- verify stepper ---------- */
+    function renderVerify(st) {
+      hasBefore = !!st.has_before;
+      const rep = st.verify;
+      const s1 = $("step1"), s2 = $("step2");
+      toggle(s1, "done", hasBefore); toggle(s1, "active", !hasBefore);
+      const fixed = !!(rep && rep.passed);
+      toggle(s2, "active", hasBefore && !fixed); toggle(s2, "done", hasBefore && fixed);
+      setText($("dot1"), hasBefore ? "✓" : "1");
+      setText($("dot2"), hasBefore && fixed ? "✓" : "2");
+      $("btn-after").disabled = !hasBefore;
+      setText($("btn-before"), hasBefore ? "Save a new “before” scan" : "Save “before” scan");
+      toggle($("btn-before"), "ghost", hasBefore); toggle($("btn-before"), "cta", !hasBefore);
+      toggle($("btn-after"), "cta", hasBefore && !fixed); toggle($("btn-after"), "ghost", !(hasBefore && !fixed));
+      setText($("s1-state"), hasBefore ? "Baseline saved" : "");
+      const out = $("verify-out");
+      if (!rep) { if (!out.dataset.err) toggle(out, "show", false); return; }
+      delete out.dataset.err;
+      const key = JSON.stringify(rep);
+      if (lastText.get(out) === key) return;
+      lastText.set(out, key);
+      renderVerifyReport(rep);
+    }
+    function renderVerifyReport(rep) {
+      const out = $("verify-out");
+      out.className = "show " + (rep.passed ? "pass" : "fail");
+      const title = el("strong", "", rep.passed ? "Fix verified ✓ The leak is gone or much smaller." : "Not fixed yet — some areas still look warm.");
+      const ul = el("ul");
+      (rep.regions || []).filter((r) => r.defect_before && r.defect_before !== "normal").forEach((r) => {
+        const li = el("li");
+        const status = r.status === "improved" ? "Improved" : r.status === "worse" ? "Worse" : "No change";
+        li.append(el("span", "", `${r.status === "improved" ? "✓" : "•"} ${nice(r.name)}`),
+          el("span", "", `${status} · ${fmt(r.delta_c_before)} → ${fmt(r.delta_c_after)} °C from normal`));
+        ul.append(li);
+      });
+      out.replaceChildren(title, ul);
+    }
+    function showVerifyMessage(text, kind) {
+      const out = $("verify-out");
+      out.dataset.err = "1";
+      out.className = "show " + (kind || "");
+      out.replaceChildren(el("span", "", text));
+      lastText.delete(out);
+    }
+    $("btn-before").addEventListener("click", async () => {
+      const b = $("btn-before"); b.disabled = true;
+      try {
+        const res = await fetch("/api/verify/before", { method: "POST" });
+        const data = await res.json();
+        hasBefore = true;
+        if (state) { state.has_before = true; state.verify = null; }
+        const n = Object.keys(data.regions || {}).length;
+        showVerifyMessage(`Baseline saved for ${n} areas. Now fix the leak, wait a few minutes and press “Check the fix”.`, "");
+        if (state) renderVerify(state);
+      } catch (err) { showVerifyMessage("Could not save the baseline. Is the camera running?", "fail"); }
+      b.disabled = false;
+    });
+    $("btn-after").addEventListener("click", async () => {
+      const b = $("btn-after"); b.disabled = true;
+      try {
+        const res = await fetch("/api/verify/after", { method: "POST" });
+        const data = await res.json();
+        if (!data.ok) { showVerifyMessage(data.error || "Save a “before” scan first.", "fail"); b.disabled = false; return; }
+        const out = $("verify-out"); delete out.dataset.err;
+        if (state) state.verify = data;
+        lastText.delete(out);
+        renderVerifyReport(data);
+        if (state) renderVerify(state);
+      } catch (err) { showVerifyMessage("Could not run the check. Is the camera running?", "fail"); }
+      b.disabled = hasBefore ? false : true;
+    });
+
+    /* ---------- settings drawer ---------- */
+    const drawer = $("drawer"), scrim = $("scrim");
+    let lastFocus = null;
+    function openDrawer() {
+      lastFocus = document.activeElement;
+      drawer.classList.add("open"); scrim.classList.add("open");
+      setTimeout(() => $("set-locality").focus(), 120);
+    }
+    function closeDrawer() {
+      drawer.classList.remove("open"); scrim.classList.remove("open");
+      if (lastFocus) lastFocus.focus();
+    }
+    $("open-settings").addEventListener("click", openDrawer);
+    $("close-settings").addEventListener("click", closeDrawer);
+    scrim.addEventListener("click", closeDrawer);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && drawer.classList.contains("open")) closeDrawer(); });
+
     function fillSettings(st) {
-      const cat = st.cost_catalogue;
-      const set = st.cost_settings;
+      const cat = st.cost_catalogue, set = st.cost_settings;
       if (cat && !catalogueReady) {
-        const loc = $("set-locality");
-        loc.innerHTML = "";
-        (cat.localities || []).forEach((l) => {
-          const opt = document.createElement("option");
-          opt.value = l.id;
-          const s17 = l.s17 != null ? l.s17 : "";
-          opt.textContent = `${l.name_en} (S17 ${Math.round(s17)})`;
-          loc.appendChild(opt);
-        });
-        const ht = $("set-heating");
-        ht.innerHTML = "";
-        (cat.heating_types || []).forEach((h) => {
-          const opt = document.createElement("option");
-          opt.value = h.id;
-          opt.textContent = h.name_en;
-          ht.appendChild(opt);
-        });
+        $("set-locality").replaceChildren(...(cat.localities || []).map((l) => {
+          const o = el("option", "", l.name_en); o.value = l.id; return o;
+        }));
+        $("set-heating").replaceChildren(...(cat.heating_types || []).map((h) => {
+          const o = el("option", "", cap(h.name_en)); o.value = h.id; return o;
+        }));
         catalogueReady = true;
-        ["set-locality","set-heating","set-tin","set-tout","set-price"].forEach((id) => {
-          $(id).addEventListener("change", onSettingsChange);
-        });
+        ["set-locality", "set-heating", "set-tin", "set-tout", "set-price"].forEach((id) => $(id).addEventListener("change", onSettingsChange));
       }
-      if (set && !settingsDirty) {
-        $("set-locality").value = set.locality || "vaasa";
-        $("set-heating").value = set.heating_type || "heat_pump";
-        $("set-tin").value = set.t_in_c != null ? set.t_in_c : 21;
-        $("set-tout").value = set.t_out_c != null ? set.t_out_c : "";
-        $("set-price").value = set.price_eur_per_kwh != null ? set.price_eur_per_kwh : "";
+      if (set && !settingsDirty && !drawer.contains(document.activeElement)) {
+        const put = (id, v) => { const n = $(id); if (n.value !== String(v)) n.value = v; };
+        put("set-locality", set.locality || "vaasa");
+        put("set-heating", set.heating_type || "heat_pump");
+        put("set-tin", set.t_in_source === "auto" || set.t_in_c == null ? "" : set.t_in_c);
+        put("set-tout", set.t_out_c != null ? set.t_out_c : "");
+        put("set-price", set.price_eur_per_kwh != null ? set.price_eur_per_kwh : "");
       }
+      setText($("tin-hint"), set?.t_in_source === "auto" ? "Indoor temp: auto (measured)" : "Manual. Empty = auto (measured).");
+      renderSensitivity(st);
       const loc = (cat?.localities || []).find((l) => l.id === set?.locality);
       const heat = (cat?.heating_types || []).find((h) => h.id === set?.heating_type);
       const bits = [];
-      if (loc) bits.push(`S17 ${Math.round(loc.s17)} °C·d (${loc.station}${loc.k1 && loc.k1 !== 1 ? `, K1 ${loc.k1}` : ""})`);
-      if (loc?.note) bits.push(loc.note);
-      if (heat) bits.push(`Default price ${heat.price_default} €/kWh (${cat?.sources?.price_period || "2026-06"}, Tilastokeskus).`);
-      if (heat?.efficiency_note) bits.push(heat.efficiency_note);
-      bits.push("Estimate only. Surface-temperature method; scale-model areas are assumed real sizes. Air leaks may be underestimated.");
-      $("cost-note").textContent = bits.join(" ");
+      if (loc) bits.push(`Climate: ${loc.name_en}, ${Math.round(loc.s17)} heating degree days (FMI S17, 1991–2020).`);
+      if (heat) bits.push(`Default price ${heat.price_default} €/kWh (Statistics Finland, ${cat?.sources?.price_period || "2026-06"}). ${heat.efficiency_note || ""}`);
+      bits.push("Estimate only: surface-temperature method, assumed real sizes for the model house. Air leaks may be underestimated.");
+      setText($("cost-note"), bits.join(" "));
     }
-
+    let sensPending = false;
+    function renderSensitivity(st) {
+      if (sensPending) return;
+      const cur = st.sensitivity || "normal";
+      document.querySelectorAll("#sens button").forEach((b) => setAttr(b, "aria-checked", String(b.dataset.v === cur)));
+    }
+    document.querySelectorAll("#sens button").forEach((b) => b.addEventListener("click", async () => {
+      sensPending = true;
+      document.querySelectorAll("#sens button").forEach((x) => setAttr(x, "aria-checked", String(x === b)));
+      try {
+        const res = await fetch("/api/cost/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sensitivity: b.dataset.v }) });
+        const data = await res.json();
+        if (state && data.sensitivity) state.sensitivity = data.sensitivity;
+        setText($("saved"), "Saved ✓"); setTimeout(() => setText($("saved"), ""), 1800);
+      } catch (err) { setText($("saved"), "Could not save"); }
+      sensPending = false;
+      tick();
+    }));
     async function onSettingsChange() {
       settingsDirty = true;
-      const tout = $("set-tout").value;
-      const price = $("set-price").value;
+      const tin = $("set-tin").value, tout = $("set-tout").value, price = $("set-price").value;
       const body = {
         locality: $("set-locality").value,
         heating_type: $("set-heating").value,
-        t_in_c: Number($("set-tin").value),
+        t_in_c: tin === "" ? null : Number(tin),
         t_out_c: tout === "" ? null : Number(tout),
         price_eur_per_kwh: price === "" ? null : Number(price),
       };
       try {
-        const res = await fetch("/api/cost/settings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
+        const res = await fetch("/api/cost/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
         const data = await res.json();
         if (data.ok) {
-          state.cost_settings = data.settings;
-          state.cost = data.total;
-          settingsDirty = false;
-          // Refresh findings' cost labels from a state poll on the next tick.
-          tick();
+          if (state) { state.cost_settings = data.settings; state.cost = data.total; }
+          setText($("saved"), "Saved ✓");
+          setTimeout(() => setText($("saved"), ""), 1800);
         }
-      } catch (err) { /* keep last */ }
+      } catch (err) { setText($("saved"), "Could not save"); }
       settingsDirty = false;
+      tick();
     }
 
-    async function tick() {
-      try {
-        const res = await fetch("/api/state");
-        state = await res.json();
-        if (selected >= (state.findings || []).length) selected = 0;
-        render();
-      } catch (err) { /* keep last frame */ }
+    /* ---------- main render + polling ---------- */
+    function render(st) {
+      const list = st.findings || [];
+      renderStatus(st);
+      const defects = renderFindings(list);
+      if (list.length) renderHeadline(defects, st.cost);
+      renderKit(st);
+      renderVerify(st);
+      fillSettings(st);
+      if (st.frame_id > 0) toggle($("thermo"), "ready", true);
     }
-    setInterval(tick, 400);
+    let busy = false;
+    async function tick() {
+      if (busy || document.hidden) return;
+      busy = true;
+      try {
+        const res = await fetch("/api/state", { cache: "no-store" });
+        state = await res.json();
+        render(state);
+      } catch (err) { /* keep the last good frame on screen */ }
+      busy = false;
+    }
+    setInterval(tick, 500);
+    document.addEventListener("visibilitychange", tick);
     tick();
 
-    $("btn-before").addEventListener("click", async () => {
-      const res = await fetch("/api/verify/before", { method: "POST" });
-      const data = await res.json();
-      const out = $("verify-out");
-      out.className = "";
-      out.textContent = "Baseline stored for " + Object.keys(data.regions || {}).length + " regions. Apply the fix, then verify.";
-    });
-    $("btn-after").addEventListener("click", async () => {
-      const res = await fetch("/api/verify/after", { method: "POST" });
-      const data = await res.json();
-      const out = $("verify-out");
-      if (!data.ok) { out.className = "fail"; out.textContent = data.error; return; }
-      out.className = data.passed ? "pass" : "fail";
-      const lines = [data.summary];
-      (data.regions || []).forEach(r => {
-        lines.push(`${r.name}: ${r.status}  ΔT ${fmt(r.delta_c_before)}→${fmt(r.delta_c_after)} °C  area drop ${fmt((r.area_drop_frac||0)*100,0)}%`);
-      });
-      out.textContent = lines.join("\n");
+    /* Re-open the MJPEG stream if the server restarts or the connection drops. */
+    const stream = $("stream");
+    let reconnect = null;
+    stream.addEventListener("error", () => {
+      clearTimeout(reconnect);
+      reconnect = setTimeout(() => { stream.src = "/api/stream.mjpeg?t=" + Date.now(); }, 1500);
     });
   </script>
 </body>

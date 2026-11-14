@@ -84,4 +84,9 @@ def test_index_served():
     client = TestClient(app)
     r = client.get("/")
     assert r.status_code == 200
-    assert b"SNUG" in r.content
+    assert b"Snug" in r.content
+    # No CDN dependencies: the UNO Q demo may run offline, so fonts must be served locally.
+    assert b"fonts.googleapis" not in r.content and b"https://fonts" not in r.content
+    for font in ("Poppins-Bold.woff2", "Inter-Variable.woff2"):
+        fr = client.get(f"/static/fonts/{font}")
+        assert fr.status_code == 200 and len(fr.content) > 1000

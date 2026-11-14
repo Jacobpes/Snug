@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from snug.analysis import HouseAnalyzer, RegionFinding
+from snug.analysis import SENSITIVITY_OPTIONS, SENSITIVITY_PRESETS, HouseAnalyzer, RegionFinding, normalize_sensitivity
 from snug.bridge import AlarmBridge
 from snug.capture import iter_frames
 from snug.colormap import temps_to_ironbow
@@ -51,6 +51,12 @@ class Pipeline:
             air_leak=bool((self.cfg.get("defects") or {}).get("air_leak", True)) and not args.no_defects,
         )
         self.detector = ElementDetector(config=self.cfg, mode=self.cfg.get("detect_mode", "hybrid"))
+        # Sensitivity: CLI > config. The model-house simulator defaults to "normal" (its
+        # deltas are huge and "high" would flag the roof gradient); live cameras use config ("high").
+        sens = getattr(args, "sensitivity", None)
+        if sens is None:
+            sens = "normal" if args.simulate else self.cfg.get("sensitivity", "high")
+        self.cfg["sensitivity"] = normalize_sensitivity(sens)
         self.analyzer = HouseAnalyzer(self.cfg)
         self.cost_settings = CostSettings.from_config(self.cfg)
         self.kit_settings = KitSettings.from_config(self.cfg)
@@ -59,7 +65,7 @@ class Pipeline:
         if getattr(args, "heating_type", None):
             self.cost_settings = self.cost_settings.updated({"heating_type": args.heating_type})
         if getattr(args, "t_in", None) is not None:
-            self.cost_settings = self.cost_settings.updated({"t_in_c": args.t_in})
+            self.cost_settings = self.cost_settings.updated({"t_in_c": args.t_in, "t_in_source": "manual"})
         if getattr(args, "t_out", None) is not None:
             self.cost_settings = self.cost_settings.updated({"t_out_c": args.t_out})
         if getattr(args, "price", None) is not None:
@@ -90,8 +96,9 @@ class Pipeline:
         findings = self.analyzer.analyze(
             temps, regions, ambient_c=ambient, indoor_c=indoor, now=meta.get("elapsed_s") or time.monotonic()
         )
-        t_in, t_out = self._scan_temps(indoor, ambient)
-        cost_total = attach_costs(findings, self.cost_settings, t_in=t_in, t_out=t_out)
+        t_in, t_out, scan = self._scan_temps(indoor, ambient)
+        cost_total = attach_costs(findings, self._settings_for_scan(scan), t_in=t_in, t_out=t_out)
+        cost_total.update(scan)
         t3 = time.perf_counter()
         color = temps_to_ironbow(temps)
         overlay = draw_findings(color, findings, temps, total=cost_total)
@@ -115,26 +122,59 @@ class Pipeline:
             self.frame_id += 1
         self.bridge.set_from_findings(findings)
 
-    def _scan_temps(self, indoor: float | None, outdoor: float | None) -> tuple[float, float]:
-        """Temps used to estimate U: measured/sim values unless the user overrode them."""
-        t_in = float(indoor) if indoor is not None else float(self.cost_settings.t_in_c)
-        if self.cost_settings.t_out_c is not None:
-            t_out = float(self.cost_settings.t_out_c)
-        elif outdoor is not None:
-            t_out = float(outdoor)
+    def _settings_for_scan(self, scan: dict[str, Any]) -> CostSettings:
+        """A live scan is by definition an interior survey (cold spots), so pin the side."""
+        cs = self.cost_settings
+        if scan.get("scan_mode") == "live_interior" and (cs.survey_side or "auto").lower() == "auto":
+            return cs.updated({"survey_side": "interior"})
+        return cs
+
+    def _scan_temps(self, indoor: float | None, outdoor: float | None) -> tuple[float, float, dict[str, Any]]:
+        """Temperatures used to estimate U, plus where they came from.
+
+        Simulator / model house (meta has indoor_c): measured sim values unless the user overrode t_out.
+        Live camera (no meta): interior survey. T_in is the measured scene temperature (robust frame
+        median) unless the user pinned t_in; T_out is the user's t_out or the Finnish heating-season
+        default (cost.default_t_out_c). The frame border is never used as outdoor temperature.
+        """
+        cs = self.cost_settings
+        if indoor is not None:
+            t_in = float(indoor)
+            if cs.t_out_c is not None:
+                t_out, t_src = float(cs.t_out_c), "setting"
+            elif outdoor is not None:
+                t_out, t_src = float(outdoor), "simulator"
+            else:
+                t_out, t_src = t_in - 20.0, "placeholder"
+            return t_in, t_out, {"scan_mode": "simulator", "t_in_source": "simulator", "t_out_source": t_src}
+        scene = self.analyzer.scene_c
+        if cs.t_in_source == "manual" or scene is None:
+            t_in, in_src = float(cs.t_in_c), "manual" if cs.t_in_source == "manual" else "setting_default"
         else:
-            t_out = t_in - 20.0  # last-resort placeholder; flagged unreliable if ΔT happens to be ok
-        return t_in, t_out
+            t_in, in_src = float(scene), "scene_median"
+        if cs.t_out_c is not None:
+            t_out, out_src = float(cs.t_out_c), "setting"
+        else:
+            t_out, out_src = float(cs.default_t_out_c), "default"
+        return t_in, t_out, {"scan_mode": "live_interior", "t_in_source": in_src, "t_out_source": out_src}
+
+    def apply_sensitivity(self, value: Any) -> str:
+        with self.lock:
+            return self.analyzer.set_sensitivity(value)
 
     def apply_cost_settings(self, patch: dict[str, Any]) -> dict[str, Any]:
+        patch = dict(patch or {})
+        if patch.get("sensitivity") not in (None, ""):
+            self.apply_sensitivity(patch["sensitivity"])
         self.cost_settings = self.cost_settings.updated(patch)
         with self.lock:
             findings = list(self.findings)
             indoor = self.meta.get("indoor_c")
             outdoor = self.meta.get("outdoor_c")
         if findings:
-            t_in, t_out = self._scan_temps(indoor, outdoor)
-            total = attach_costs(findings, self.cost_settings, t_in=t_in, t_out=t_out)
+            t_in, t_out, scan = self._scan_temps(indoor, outdoor)
+            total = attach_costs(findings, self._settings_for_scan(scan), t_in=t_in, t_out=t_out)
+            total.update(scan)
             with self.lock:
                 self.findings = findings
                 self.cost_total = total
@@ -169,7 +209,10 @@ class Pipeline:
                 "outdoor_c": self.meta.get("outdoor_c"),
                 "source": self.meta.get("source"),
                 "elapsed_s": self.meta.get("elapsed_s"),
+                "scene_c": None if self.analyzer.scene_c is None else round(float(self.analyzer.scene_c), 2),
+                "scan_mode": "live_interior" if self.analyzer.live else "simulator",
             }
+            sensitivity = self.analyzer.sensitivity
             verify = self.analyzer.last_verification
             has_before = self.analyzer.before is not None
             frame_id = self.frame_id
@@ -191,6 +234,9 @@ class Pipeline:
             "answers": six,
             "cost": cost_total,
             "cost_settings": cost_settings,
+            "sensitivity": sensitivity,
+            "sensitivity_options": list(SENSITIVITY_OPTIONS),
+            "sensitivity_presets": {k: dict(v) for k, v in SENSITIVITY_PRESETS.items()},
             "cost_catalogue": catalogue(),
             "kit": kit,
             "verify": verify,
@@ -261,8 +307,18 @@ def create_app(pipe: Pipeline) -> FastAPI:
 
     @app.post("/api/cost/settings")
     def cost_settings(payload: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:
-        settings = pipe.apply_cost_settings(payload or {})
-        return {"ok": True, "settings": settings, "total": pipe.cost_total}
+        payload = payload or {}
+        try:
+            settings = pipe.apply_cost_settings(payload)
+        except ValueError as exc:
+            return JSONResponse({"ok": False, "error": str(exc), "options": list(SENSITIVITY_OPTIONS)}, status_code=400)
+        return {
+            "ok": True,
+            "settings": settings,
+            "total": pipe.cost_total,
+            "sensitivity": pipe.analyzer.sensitivity,
+            "sensitivity_options": list(SENSITIVITY_OPTIONS),
+        }
 
     if STATIC.is_dir():
         @app.get("/")
@@ -288,8 +344,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--bridge", action="store_true", help="Enable optional Arduino App Lab Bridge alarm.")
     p.add_argument("--locality", type=str, default=None, help="Finnish climate locality (e.g. vaasa, pietarsaari, helsinki).")
     p.add_argument("--heating-type", type=str, default=None, help="electric, heat_pump, ground_source, district, oil.")
-    p.add_argument("--t-in", type=float, default=None, help="Indoor air temperature used when the scan has no reading (°C).")
-    p.add_argument("--t-out", type=float, default=None, help="Override outdoor/ambient temperature (°C). Default: measured.")
+    p.add_argument("--t-in", type=float, default=None, help="Pin the indoor temperature (°C). Default for a live camera: measured scene temperature.")
+    p.add_argument("--t-out", type=float, default=None, help="Outdoor temperature (°C). Default: simulator value, or cost.default_t_out_c (0 °C) for a live camera.")
+    p.add_argument(
+        "--sensitivity",
+        choices=list(SENSITIVITY_OPTIONS),
+        default=None,
+        help="Detection sensitivity: low (strict demo-house thresholds), normal, high (live camera default).",
+    )
     p.add_argument("--price", type=float, default=None, help="Override energy price in €/kWh.")
     return p.parse_args(argv)
 

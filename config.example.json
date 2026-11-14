@@ -2,6 +2,7 @@
   "meters_per_pixel": 0.002,
   "reference_roi": "insulated_wall",
   "detect_mode": "hybrid",
+  "sensitivity": "high",
   "fluctuation_window_s": 4.0,
   "u_values": {
     "wall": 0.35,
@@ -11,12 +12,8 @@
     "corner": 0.8
   },
   "thresholds": {
-    "normal_dt": 1.5,
-    "medium_dt": 3.0,
-    "high_dt": 5.0,
     "area_frac_medium": 0.15,
     "area_frac_high": 0.3,
-    "anomaly_offset_c": 1.2,
     "verify_dt_drop_frac": 0.4,
     "verify_area_drop_frac": 0.4
   },
@@ -92,7 +89,7 @@
   "cost": {
     "locality": "vaasa",
     "heating_type": "heat_pump",
-    "t_in_c": 21,
+    "t_in_c": null,
     "t_out_c": null,
     "survey_side": "auto",
     "real_areas_m2": {
@@ -101,7 +98,8 @@
       "wall": 10.0,
       "roof": 10.0,
       "corner": 2.0
-    }
+    },
+    "default_t_out_c": 0.0
   },
   "kit": {
     "uno_q_variant": "2gb",

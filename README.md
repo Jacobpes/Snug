@@ -103,6 +103,20 @@ python server.py --bridge --host 0.0.0.0 --port 8080
 
 ---
 
+## Detection sensitivity and live (interior) surveys
+
+`sensitivity` = `low` | `normal` | `high` (config `"sensitivity"`, CLI `--sensitivity`, or `POST /api/cost/settings {"sensitivity": "high"}`; `GET /api/state` returns `sensitivity`, `sensitivity_options`, `sensitivity_presets`).
+
+| preset | normal ΔT | anomaly offset | min area | medium / high ΔT |
+|---|---|---|---|---|
+| low (original demo thresholds) | 1.5 °C | 1.2 °C | 2 % | 3.0 / 5.0 °C |
+| normal | 1.0 °C | 0.8 °C | 2 % | 2.5 / 4.5 °C |
+| high (live-camera default) | 0.5 °C | 0.4 °C | 1 % | 1.5 / 3.0 °C |
+
+Each region is tested for both a warm excess (exterior view / model house) and a cold deficit (interior view: leaks and cold bridges are cold spots); the larger one wins (`direction` = `warm`|`cold`). Values are EMA-smoothed (~1 s), the mask is box-filtered and blobs under 6 px are ignored. The simulator defaults to `normal`.
+
+With a live camera (no simulator meta) the cost model treats the scan as an interior survey: T_in = measured scene temperature (frame median) unless you set `t_in_c`, T_out = `cost.t_out_c` or `cost.default_t_out_c` (0 °C, Finnish heating season). The frame border is never used. Warm spots seen from inside are not counted as heat loss.
+
 ## Årlig merkostnad för värmeläckage / Annual extra heating cost
 
 ### Svenska — metod, antaganden, källor och begränsningar
@@ -129,7 +143,9 @@ Inlagda årsvärden (S17, °C·d, avrundat): Helsingfors 3803 (station Helsinki-
 - Fjärrvärme, pientalo: 114 €/MWh (13nl) / 114,39 €/MWh (12gd); radhus 109,49 €/MWh.
 - Lätt eldningsolja: 167,5 €/MWh (12ge; 1,67 €/l), pannverkningsgrad antagen 0,85–0,90.
 
-Pris, ort, värmetyp och T_in/T_ute går att ändra i dashboarden, i `config.example.json` och med `--locality`, `--heating-type`, `--t-in`, `--t-out`, `--price`. Standard är Vasa och luftvärmepump. T_in är 21 °C om ingen mätning finns; T_ute tas från kameran/simulatorn om det inte överskrivs.
+Pris, ort, värmetyp och T_in/T_ute går att ändra i dashboarden, i `config.example.json` och med `--locality`, `--heating-type`, `--t-in`, `--t-out`, `--price`. Standard är Vasa och luftvärmepump. I simulatorn (modellhuset) används simulatorns inne-/utetemperatur om de inte överskrivs. Med riktig kamera (inga simulatordata) görs en *invändig* skanning: T_in är den uppmätta scentemperaturen (median av bilden) om man inte fastställt `--t-in`/`cost.t_in_c`, och T_ute är `cost.t_out_c`/`--t-out` eller annars `cost.default_t_out_c` (0 °C, typisk finsk uppvärmningssäsong). Bildens kant används aldrig som utetemperatur.
+
+**Känslighet.** `sensitivity` = `low` | `normal` | `high` (`config.example.json`, `--sensitivity`, eller `POST /api/cost/settings {"sensitivity": "high"}`; aktuellt värde och alternativ finns i `/api/state` som `sensitivity` och `sensitivity_options`). `low` är de ursprungliga modellhus-trösklarna (normal ΔT 1,5 °C, avvikelse 1,2 °C, medium 3, hög 5). `normal` = 1,0 / 0,8 / medium 2,5 / hög 4,5 och `high` = 0,5 / 0,4 / medium 1,5 / hög 3,0 °C med minsta anomalyyta 1 %. Standard är `high` för riktig kamera och `normal` i simulatorn. Varje region testas åt båda hållen: varm avvikelse (modellhuset sett utifrån) och *kall* avvikelse (köld­brygga/luftläcka sedd inifrån); den större vinner. Resultaten jämnas ut med ett exponentiellt medelvärde (~1 s), bilden mjukas upp 3×3 och anomalier under 6 pixlar ignoreras så att sensorbrus inte ger falska fynd. En liten kall fläck (0,8–1,5 °C, 5–15 % av en vägg) ger i storleksordningen några euro per år; en liten fläck på ett fönster (1,5 m²) ger runt 1 €/år. Siffrorna är fortfarande uppskattningar.
 
 **Begränsningar.** Yttemperaturmetoden är ungefärlig. Den kräver typiskt ΔT ≳ 10 °C inne–ute under skanningen (annars märks uppskattningen som osäker). FMI:s S17 antar innertemperatur +17 °C (interna laster täcker resten upp till vanlig rumstemperatur) — det är inte samma sak som skanningens T_in. Luftläckage skattas med samma yttemperaturmetod; extra infiltrationsförluster modelleras inte och kan underskattas. Skalmodellens areor är antaganden. Detta är ingen energideklaration eller certifierad audit.
 

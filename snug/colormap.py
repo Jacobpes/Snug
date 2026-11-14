@@ -4,18 +4,19 @@ from __future__ import annotations
 
 import numpy as np
 
-# Key colours approximating a FLIR-style ironbow (black → blue → magenta → orange → yellow → white).
+# Key colours of the Snug thermal ramp (same as the pitch deck): near-black violet -> 3B0F6E -> A3207F ->
+# EC5A26 -> F9B233 -> pale cream. Still a classic ironbow-style monotonic hot-is-brighter ramp.
 _KEYS = np.array(
     [
-        [0, 0, 0],
-        [16, 0, 64],
-        [32, 0, 160],
-        [128, 0, 176],
-        [200, 24, 80],
-        [255, 80, 16],
-        [255, 160, 0],
-        [255, 224, 80],
-        [255, 255, 255],
+        [9, 6, 24],
+        [59, 15, 110],
+        [110, 22, 121],
+        [163, 32, 127],
+        [212, 55, 78],
+        [236, 90, 38],
+        [249, 178, 51],
+        [255, 233, 168],
+        [255, 250, 232],
     ],
     dtype=np.float32,
 )
@@ -29,7 +30,8 @@ def _build_lut() -> np.ndarray:
     return lut
 
 
-IRONBOW_LUT = _build_lut()
+# cv2 images are BGR, the key colours above are written as RGB.
+IRONBOW_LUT = np.ascontiguousarray(_build_lut()[:, :, ::-1])
 
 
 def temps_to_ironbow(

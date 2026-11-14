@@ -289,6 +289,7 @@ HEATING_TYPES: dict[str, dict[str, Any]] = {
 DEFAULT_LOCALITY = "vaasa"
 DEFAULT_HEATING = "heat_pump"
 DEFAULT_T_IN_C = 21.0
+DEFAULT_LIVE_T_OUT_C = 0.0  # °C, typical Finnish heating-season day; configurable
 METHOD_UNCERTAINTY = 0.15  # widen a collapsed range so we don't imply false precision
 
 
@@ -444,6 +445,11 @@ class CostSettings:
     price_eur_per_kwh: float | None = None
     cop: float | None = None
     real_areas_m2: dict[str, float] = field(default_factory=dict)
+    # Live camera (interior survey, no simulator meta): "auto" = use the measured scene
+    # temperature as T_in; "manual" = use t_in_c as set by the user (CLI / config / dashboard).
+    t_in_source: str = "auto"
+    # Outdoor temperature assumed for a live survey when t_out_c is not set (Finnish heating season).
+    default_t_out_c: float = DEFAULT_LIVE_T_OUT_C
 
     @classmethod
     def from_config(cls, cfg: dict[str, Any] | None) -> "CostSettings":
@@ -451,7 +457,14 @@ class CostSettings:
         areas = dict(DEFAULT_REAL_AREAS_M2)
         areas.update(raw.get("real_areas_m2") or {})
         t_out = raw.get("t_out_c", raw.get("t_out"))
-        t_in = raw.get("t_in_c", raw.get("t_in", DEFAULT_T_IN_C))
+        t_in = raw.get("t_in_c", raw.get("t_in"))
+        source = str(raw.get("t_in_source") or ("manual" if t_in not in (None, "") else "auto")).lower()
+        if source not in {"auto", "manual"}:
+            source = "auto"
+        if t_in in (None, ""):
+            t_in = DEFAULT_T_IN_C
+            source = "auto"
+        d_out = raw.get("default_t_out_c")
         return cls(
             locality=str(raw.get("locality", DEFAULT_LOCALITY)),
             heating_type=str(raw.get("heating_type", DEFAULT_HEATING)),
@@ -463,6 +476,8 @@ class CostSettings:
             ),
             cop=None if raw.get("cop") in (None, "") else float(raw["cop"]),
             real_areas_m2=areas,
+            t_in_source=source,
+            default_t_out_c=DEFAULT_LIVE_T_OUT_C if d_out in (None, "") else float(d_out),
         )
 
     def updated(self, patch: dict[str, Any] | None) -> "CostSettings":
@@ -477,9 +492,23 @@ class CostSettings:
                 "price_eur_per_kwh",
                 "cop",
                 "real_areas_m2",
+                "t_in_source",
+                "default_t_out_c",
             ):
                 if key in patch:
                     data[key] = patch[key]
+            # Changing the indoor temperature to a different value pins it ("manual");
+            # re-posting the unchanged value keeps automatic scene-temperature mode.
+            if "t_in_c" in patch and "t_in_source" not in patch:
+                try:
+                    changed = patch["t_in_c"] not in (None, "") and abs(float(patch["t_in_c"]) - float(self.t_in_c)) > 1e-9
+                except (TypeError, ValueError):
+                    changed = False
+                if changed:
+                    data["t_in_source"] = "manual"
+            if "t_in_c" in patch and patch["t_in_c"] in (None, ""):
+                data["t_in_c"] = None
+                data["t_in_source"] = "auto"
         # Re-parse through from_config for type coercion.
         return CostSettings.from_config({"cost": data})
 
@@ -494,6 +523,8 @@ class CostSettings:
             "t_in_c": self.t_in_c,
             "t_out_c": self.t_out_c,
             "survey_side": self.survey_side,
+            "t_in_source": self.t_in_source,
+            "default_t_out_c": self.default_t_out_c,
             "price_eur_per_kwh": self.price_eur_per_kwh,
             "cop": self.cop,
             "real_areas_m2": dict(self.real_areas_m2 or DEFAULT_REAL_AREAS_M2),

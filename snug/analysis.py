@@ -23,6 +23,51 @@ from snug.actions import ACTIONS, DEFAULT_U, action_for, verification_verdict
 
 SEVERITY_RANK = {"ok": 0, "low": 1, "medium": 2, "high": 3}
 
+# Sensitivity presets. "low" keeps the original demo-house thresholds exactly.
+SENSITIVITY_OPTIONS = ["low", "normal", "high"]
+DEFAULT_SENSITIVITY = "low"  # analyzer default; config.example.json / the server pick "high" for the live demo
+SENSITIVITY_PRESETS: dict[str, dict[str, float]] = {
+    "low": {
+        "normal_dt": 1.5,
+        "anomaly_offset_c": 1.2,
+        "min_anomaly_frac": 0.02,
+        "medium_dt": 3.0,
+        "high_dt": 5.0,
+        "min_anomaly_px": 0,
+        "smooth_px": 0,
+    },
+    "normal": {
+        "normal_dt": 1.0,
+        "anomaly_offset_c": 0.8,
+        "min_anomaly_frac": 0.02,
+        "medium_dt": 2.5,
+        "high_dt": 4.5,
+        "min_anomaly_px": 6,
+        "smooth_px": 3,
+    },
+    "high": {
+        "normal_dt": 0.5,
+        "anomaly_offset_c": 0.4,
+        "min_anomaly_frac": 0.01,
+        "medium_dt": 1.5,
+        "high_dt": 3.0,
+        "min_anomaly_px": 6,
+        "smooth_px": 3,
+    },
+}
+# Time constant (s) of the exponential smoothing of region deltas / anomaly fractions.
+EMA_TAU_S = 1.0
+DEFAULT_SCENE_T_OUT_C = 0.0
+
+
+def normalize_sensitivity(value: Any) -> str:
+    key = str(value or DEFAULT_SENSITIVITY).strip().lower()
+    aliases = {"med": "normal", "medium": "normal", "default": "normal", "hi": "high", "max": "high", "lo": "low"}
+    key = aliases.get(key, key)
+    if key not in SENSITIVITY_PRESETS:
+        raise ValueError(f"sensitivity must be one of {SENSITIVITY_OPTIONS}, got {value!r}")
+    return key
+
 
 @dataclass
 class RegionFinding:
@@ -62,6 +107,8 @@ class RegionFinding:
     cost: dict[str, Any] | None = None
     cost_label: str | None = None
     cost_short: str | None = None
+    direction: str = "warm"  # "warm" (excess heat) or "cold" (cold spot seen from inside)
+    live: bool = False  # True = live interior survey (no simulator meta)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -119,6 +166,22 @@ def _anomaly_mask(crop: np.ndarray, reference_c: float, thresh_c: float) -> np.n
     return crop >= (reference_c + thresh_c)
 
 
+def _cold_mask(crop: np.ndarray, baseline_c: float, thresh_c: float) -> np.ndarray:
+    return crop <= (baseline_c - thresh_c)
+
+
+def drop_small_blobs(mask: np.ndarray, min_px: int) -> np.ndarray:
+    """Remove connected components smaller than ``min_px`` pixels (sensor noise)."""
+    if min_px <= 1 or not mask.any():
+        return mask
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask.astype(np.uint8), connectivity=8)
+    if n <= 1:
+        return mask
+    keep = np.zeros(n, dtype=bool)
+    keep[1:] = stats[1:, cv2.CC_STAT_AREA] >= min_px
+    return keep[labels]
+
+
 def shape_features(mask: np.ndarray) -> tuple[float, float, float]:
     """Return (compactness, aspect_ratio, area_frac) for a boolean mask."""
     pixels = int(mask.sum())
@@ -155,7 +218,7 @@ def edge_overlap_fraction(mask: np.ndarray, border: int = 4) -> float:
     return float((mask & rim).sum()) / float(mask.sum())
 
 
-def classify_defect(
+def _classify_impl(
     *,
     element: str,
     delta_c: float,
@@ -165,10 +228,11 @@ def classify_defect(
     fluctuation_c: float | None,
     anomaly_frac: float,
     normal_dt: float,
+    min_frac: float = 0.02,
 ) -> tuple[str, list[str]]:
     """Rule-based defect type. Returns (defect, reasons)."""
     reasons: list[str] = []
-    if delta_c < normal_dt or anomaly_frac < 0.02:
+    if delta_c < normal_dt or anomaly_frac < min_frac:
         return "normal", [f"ΔT {delta_c:.2f} °C below normal threshold {normal_dt:.2f} °C"]
 
     # Air leak: openings + streaky / fluttering
@@ -208,6 +272,36 @@ def classify_defect(
     return "insulation_gap", reasons
 
 
+def classify_defect(
+    *,
+    element: str,
+    delta_c: float,
+    compactness: float,
+    aspect_ratio: float,
+    edge_overlap: float,
+    fluctuation_c: float | None,
+    anomaly_frac: float,
+    normal_dt: float,
+    min_frac: float = 0.02,
+    direction: str = "warm",
+) -> tuple[str, list[str]]:
+    """Rule-based defect type for a warm excess or (seen from inside) a cold deficit."""
+    defect, reasons = _classify_impl(
+        element=element,
+        delta_c=delta_c,
+        compactness=compactness,
+        aspect_ratio=aspect_ratio,
+        edge_overlap=edge_overlap,
+        fluctuation_c=fluctuation_c,
+        anomaly_frac=anomaly_frac,
+        normal_dt=normal_dt,
+        min_frac=min_frac,
+    )
+    if direction == "cold":
+        reasons = [r.replace("warm", "cold") for r in reasons]
+    return defect, reasons
+
+
 def severity_of(delta_c: float, anomaly_frac: float, thresholds: dict[str, float]) -> str:
     if delta_c < thresholds["normal_dt"]:
         return "ok"
@@ -216,7 +310,10 @@ def severity_of(delta_c: float, anomaly_frac: float, thresholds: dict[str, float
     )
     if high:
         return "high"
-    if delta_c >= thresholds["medium_dt"] or anomaly_frac >= thresholds["area_frac_medium"]:
+    # A large area alone only makes it "medium" when the deviation is also clearly above noise.
+    if delta_c >= thresholds["medium_dt"] or (
+        anomaly_frac >= thresholds["area_frac_medium"] and delta_c >= 0.5 * thresholds["medium_dt"]
+    ):
         return "medium"
     return "low"
 
@@ -227,29 +324,51 @@ def estimate_q(u_value: float, area_m2: float, delta_c: float) -> float:
 
 
 class HouseAnalyzer:
-    """Stateful analyzer: keeps a short history for air-leak fluctuation + verify snapshots."""
+    """Stateful analyzer: keeps a short history for air-leak fluctuation + verify snapshots.
+
+    Two survey situations are handled:
+
+    * simulator / model-house demo (``ambient_c`` and ``indoor_c`` supplied): exterior view,
+      leaks are WARM anomalies relative to the insulated reference wall;
+    * live camera (both ``None``): an interior survey. Leaks and cold bridges are COLD spots,
+      so each region is tested in both directions and the larger deviation wins.
+    """
 
     def __init__(self, cfg: dict[str, Any] | None = None):
         cfg = cfg or {}
         self.meters_per_pixel = float(cfg.get("meters_per_pixel", 0.002))
         self.u_values = {**DEFAULT_U, **(cfg.get("u_values") or {})}
-        self.thresholds = {
-            "normal_dt": 1.5,
-            "medium_dt": 3.0,
-            "high_dt": 5.0,
+        self._threshold_base = {
             "area_frac_medium": 0.15,
             "area_frac_high": 0.30,
-            "anomaly_offset_c": 1.2,
             "verify_dt_drop_frac": 0.4,
             "verify_area_drop_frac": 0.4,
-            **(cfg.get("thresholds") or {}),
         }
+        # Explicit values in cfg["thresholds"] win over the sensitivity preset.
+        self._threshold_overrides = dict(cfg.get("thresholds") or {})
+        self._smooth: dict[str, dict[str, float]] = {}
+        self.sensitivity = DEFAULT_SENSITIVITY
+        self.thresholds: dict[str, float] = {}
+        self.set_sensitivity(cfg.get("sensitivity", DEFAULT_SENSITIVITY))
         self.reference_name = cfg.get("reference_roi", "insulated_wall")
         self.history_s = float(cfg.get("fluctuation_window_s", 4.0))
+        self.ema_tau_s = float(cfg.get("smoothing_tau_s", EMA_TAU_S))
         self._hist: dict[str, deque[tuple[float, float]]] = defaultdict(deque)
+        self._scene: tuple[float, float] | None = None  # (time, EMA of the frame median)
+        self.scene_c: float | None = None
+        self.live = False
         self.before: dict[str, dict[str, Any]] | None = None
         self.last_verification: dict[str, Any] | None = None
 
+    # -- configuration -------------------------------------------------
+    def set_sensitivity(self, value: Any) -> str:
+        key = normalize_sensitivity(value)
+        self.sensitivity = key
+        self.thresholds = {**self._threshold_base, **SENSITIVITY_PRESETS[key], **self._threshold_overrides}
+        self._smooth.clear()
+        return key
+
+    # -- state ---------------------------------------------------------
     def _push(self, name: str, now: float, mean_c: float) -> None:
         hist = self._hist[name]
         hist.append((now, mean_c))
@@ -263,6 +382,41 @@ class HouseAnalyzer:
             return None
         return float(np.std(np.asarray(vals, dtype=np.float64)))
 
+    def _alpha(self, last_t: float, now: float) -> float | None:
+        dt = now - last_t
+        if dt <= 1e-6 or dt > 3.0 * self.ema_tau_s:
+            return None  # same/backwards timestamp or stale: restart from the raw value
+        return float(1.0 - np.exp(-dt / max(self.ema_tau_s, 1e-3)))
+
+    def _ema(self, name: str, now: float, vals: dict[str, float]) -> dict[str, float]:
+        """Exponential smoothing (~``ema_tau_s``) of the per-region measurements."""
+        prev = self._smooth.get(name)
+        alpha = self._alpha(prev["_t"], now) if prev else None
+        if prev is None or alpha is None:
+            out = dict(vals)
+        else:
+            out = {k: prev[k] + alpha * (v - prev[k]) for k, v in vals.items()}
+        out["_t"] = now
+        self._smooth[name] = out
+        return out
+
+    def _update_scene(self, temps: np.ndarray, now: float) -> float:
+        med = float(np.median(temps))
+        prev = self._scene
+        alpha = self._alpha(prev[0], now) if prev else None
+        val = med if prev is None or alpha is None else prev[1] + alpha * (med - prev[1])
+        self._scene = (now, val)
+        self.scene_c = val
+        return val
+
+    def _blur(self, crop: np.ndarray) -> np.ndarray:
+        k = int(self.thresholds.get("smooth_px", 0))
+        c32 = np.ascontiguousarray(crop, dtype=np.float32)
+        if k >= 2 and min(c32.shape) >= k:
+            return cv2.blur(c32, (k, k))
+        return c32
+
+    # -- analysis ------------------------------------------------------
     def analyze(
         self,
         temps: np.ndarray,
@@ -274,6 +428,13 @@ class HouseAnalyzer:
     ) -> list[RegionFinding]:
         if not regions:
             return []
+        live = ambient_c is None and indoor_c is None
+        self.live = live
+        self._update_scene(temps, now)
+        th = self.thresholds
+        offset = float(th["anomaly_offset_c"])
+        min_px = int(th.get("min_anomaly_px", 0))
+        min_frac = float(th.get("min_anomaly_frac", 0.02))
 
         # Reference: named insulated wall, else the coolest 'wall' region mean.
         ref = None
@@ -288,6 +449,7 @@ class HouseAnalyzer:
 
         if ambient_c is None:
             # Use a 12-px border median as outdoor/ambient proxy when not provided.
+            # (Display only: the cost model never uses it for a live interior scan.)
             border = np.concatenate(
                 [
                     temps[:8, :].ravel(),
@@ -304,35 +466,68 @@ class HouseAnalyzer:
             if r.get("element") == "background":
                 continue
             name = str(r.get("name") or r.get("element") or "region")
-            st = region_stats(temps, r, inset=8 if name == self.reference_name else 0)
+            is_ref = name == self.reference_name
+            st = region_stats(temps, r, inset=8 if is_ref else 0)
             element = str(r.get("element") or "wall")
             self._push(name, now, st["mean_c"])
             fluct = self._fluctuation(name)
-            # Opaque elements: compare to the insulated reference (or ambient for that wall).
-            # Openings: a warm pane/door leaf is expected; look for streaks hotter than the element itself.
+            crop = st["crop"]
+            sm = self._blur(crop)
+            mean = float(st["mean_c"])
             opening = element in {"window", "door"}
-            if name == self.reference_name:
-                baseline = float(ambient_c)
-            elif opening:
-                baseline = float(np.percentile(st["crop"], 40))
-            else:
-                baseline = float(reference_c)
-            delta = st["mean_c"] - (float(ambient_c) if name == self.reference_name else (baseline if opening else reference_c))
-            if opening:
-                # Surface excess of the leak relative to the pane, not the whole-element mean vs the wall.
-                delta = float(st["max_c"] - baseline) * 0.5 + float(st["mean_c"] - baseline) * 0.5
 
-            mask = _anomaly_mask(st["crop"], baseline, self.thresholds["anomaly_offset_c"])
-            compactness, aspect, _ = shape_features(mask)
-            anomaly_px = int(mask.sum())
-            anomaly_frac = anomaly_px / mask.size if mask.size else 0.0
-            if anomaly_px:
-                t_surface = float(st["crop"][mask].mean())
+            # Baselines and deviation measures for both directions.
+            # Warm (exterior view / heat source): excess over the baseline.
+            # Cold (interior view): deficit below the baseline.
+            if opening:
+                # A warm pane/door leaf is expected; look for streaks hotter (or colder) than the element itself.
+                base_w = float(np.percentile(crop, 40))
+                base_c = float(np.percentile(crop, 60))
+                dw = 0.5 * (float(sm.max()) - base_w) + 0.5 * (mean - base_w)
+                dc = 0.5 * (base_c - float(sm.min())) + 0.5 * (base_c - mean)
             else:
-                t_surface = float(st["mean_c"])
-            t_ref_surface = float(baseline) if opening else float(reference_c)
-            if name == self.reference_name:
+                # The reference wall is the healthy baseline: it is only checked for hot/cold spots
+                # inside itself (it used to be compared against outdoor air, which flags a good wall
+                # as soon as thresholds get sensitive).
+                base_w = base_c = float(reference_c)
+                dw = mean - base_w
+                if live:
+                    # Interior survey: a small local anomaly barely moves the mean, so weigh the tail too.
+                    dw = max(dw, 0.5 * (float(np.percentile(sm, 98)) - base_w) + 0.5 * (mean - base_w))
+                dc = 0.5 * (base_c - float(np.percentile(sm, 2))) + 0.5 * (base_c - mean)
+
+            mask_w = drop_small_blobs(_anomaly_mask(sm, base_w, offset), min_px)
+            frac_w = float(mask_w.sum()) / max(mask_w.size, 1)
+            t_w = float(crop[mask_w].mean()) if mask_w.any() else mean
+            if base_c is not None:
+                mask_c = drop_small_blobs(_cold_mask(sm, base_c, offset), min_px)
+                frac_c = float(mask_c.sum()) / max(mask_c.size, 1)
+                t_c = float(crop[mask_c].mean()) if mask_c.any() else mean
+            else:
+                mask_c, frac_c, t_c = np.zeros_like(mask_w), 0.0, mean
+
+            if live:
+                # A localized anomaly barely moves the region mean: also rate it by how far its own
+                # pixels sit from the baseline (>= the offset by construction).
+                if frac_w >= min_frac and mask_w.any():
+                    dw = max(dw, t_w - base_w)
+                if base_c is not None and frac_c >= min_frac and mask_c.any():
+                    dc = max(dc, base_c - t_c)
+
+            sv = self._ema(name, now, {"dw": dw, "dc": dc, "fw": frac_w, "fc": frac_c, "tw": t_w, "tc": t_c})
+            cold = base_c is not None and sv["dc"] > sv["dw"]
+            direction = "cold" if cold else "warm"
+            delta = float(sv["dc"] if cold else sv["dw"])
+            anomaly_frac = float(sv["fc"] if cold else sv["fw"])
+            t_surface = float(sv["tc"] if cold else sv["tw"])
+            mask = mask_c if cold else mask_w
+            baseline = base_c if cold else base_w
+            anomaly_px = int(round(anomaly_frac * mask.size))
+            compactness, aspect, _ = shape_features(mask)
+            if is_ref:
                 t_ref_surface = float(reference_c)
+            else:
+                t_ref_surface = float(baseline) if opening else float(reference_c)
             edge_ov = edge_overlap_fraction(mask)
             defect, reasons = classify_defect(
                 element=element,
@@ -342,21 +537,35 @@ class HouseAnalyzer:
                 edge_overlap=edge_ov,
                 fluctuation_c=fluct,
                 anomaly_frac=anomaly_frac,
-                normal_dt=float(self.thresholds["normal_dt"]),
+                normal_dt=float(th["normal_dt"]),
+                min_frac=min_frac,
+                direction=direction,
             )
-            sev = severity_of(delta, anomaly_frac, self.thresholds)
+            sev = severity_of(delta, anomaly_frac, th)
             if defect == "normal":
                 sev = "ok"
+            else:
+                reasons.append(
+                    f"{direction} anomaly {delta:.1f} °C vs {'opening baseline' if opening else 'reference wall'}"
+                    f" over {anomaly_frac:.0%} of the region"
+                )
+            if live and defect != "normal" and not cold:
+                reasons.append("warm area seen from inside: likely a heat source, not a heat loss (no cost counted)")
             u = float(self.u_values.get(element, 0.35))
             area_m2 = anomaly_px * px_area
-            # Heat-loss estimate uses indoor-outdoor ΔT when known, else surface ΔT.
-            dt_q = (indoor_c - ambient_c) if indoor_c is not None else max(delta, st["mean_c"] - ambient_c)
+            # Heat-loss estimate uses indoor-outdoor ΔT when known, else the anomaly's surface ΔT.
+            if live:
+                dt_q = max(delta, 0.0)
+            else:
+                dt_q = (indoor_c - ambient_c) if indoor_c is not None else max(delta, st["mean_c"] - ambient_c)
             q = estimate_q(u, area_m2, dt_q)
             act = action_for(defect)
+            fix, verify, hud = act["fix"], act["verify"], act["hud"]
+            if cold:
+                verify = verify.replace("warm", "cold")
             priority = SEVERITY_RANK[sev] * 10.0 + q + max(delta, 0.0)
-            hud = act["hud"]
             if defect != "normal":
-                hud = f"{act['hud']} at {name.replace('_', ' ')} · Severity {sev.upper()}"
+                hud = f"{hud} at {name.replace('_', ' ')} · Severity {sev.upper()}"
             findings.append(
                 RegionFinding(
                     name=name,
@@ -386,12 +595,14 @@ class HouseAnalyzer:
                     q_watts=float(q),
                     u_value=u,
                     priority=float(priority),
-                    fix=act["fix"],
-                    verify=act["verify"],
+                    fix=fix,
+                    verify=verify,
                     hud=hud,
                     reasons=reasons,
                     t_surface_c=t_surface,
                     t_ref_surface_c=t_ref_surface,
+                    direction=direction,
+                    live=live,
                 )
             )
         findings.sort(key=lambda f: f.priority, reverse=True)
