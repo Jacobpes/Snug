@@ -2,9 +2,10 @@
 Description=Snug thermal edge AI
 After=network-online.target
 [Service]
+TimeoutStartSec=0
 WorkingDirectory=/root/snug
 Environment=PYTHONPATH=/root/unoq_deps:/root/snug
-ExecStartPre=/bin/sh -c "for i in $$(seq 90); do ls /sys/bus/usb/drivers/uvcvideo 2>/dev/null | grep -q : && exit 0; sleep 1; done; exit 0"
+ExecStartPre=/bin/sh -c "while true; do ls /sys/bus/usb/drivers/uvcvideo 2>/dev/null | grep -q : && exit 0; sleep 1; done"
 ExecStart=/usr/bin/python3 server.py --host 0.0.0.0 --port 8080
 Restart=always
 RestartSec=3
