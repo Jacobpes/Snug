@@ -863,19 +863,22 @@ def payback_months(kit_total_eur: float, cost_eur_low: float, cost_eur_high: flo
     }
 
 
+def format_duration_months(months: float) -> str:
+    """'7 months', or years and months above 12 months: '2 years 3 months', '1 year', '15 years'."""
+    n = max(1, int(round(float(months))))
+    if n <= 12:
+        return f"{n} month" if n == 1 else f"{n} months"
+    years, rest = divmod(n, 12)
+    out = f"{years} year" if years == 1 else f"{years} years"
+    if rest and years < 10:
+        out += f" {rest} month" if rest == 1 else f" {rest} months"
+    return out
+
+
 def payback_label(months: float) -> str:
     if months < 1:
         return "Pays back in under a month (Estimate)"
-    if months < 18:
-        n = max(1, int(round(months)))
-        unit = "month" if n == 1 else "months"
-        return f"Pays back in ~{n} {unit} (Estimate)"
-    years = months / 12.0
-    if years < 10:
-        y = round(years, 1)
-        shown = int(y) if abs(y - int(y)) < 1e-9 else y
-        return f"Pays back in ~{shown} years (Estimate)"
-    return f"Pays back in ~{int(round(years))} years (Estimate)"
+    return f"Pays back in ~{format_duration_months(months)} (Estimate)"
 
 
 def _money(raw: Any, default: float) -> float:

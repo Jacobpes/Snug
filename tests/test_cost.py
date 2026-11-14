@@ -294,3 +294,10 @@ def test_attach_costs_zero_defects_says_no_leaks():
     assert total["label"] == "No leaks found"
     assert findings[0].cost_short.startswith("Fix → save €0")
 
+
+
+def test_payback_over_12_months_shows_years_and_months():
+    assert payback_label(12.0) == "Pays back in ~12 months (Estimate)"
+    assert payback_label(13.0) == "Pays back in ~1 year 1 month (Estimate)"
+    assert payback_label(27.4) == "Pays back in ~2 years 3 months (Estimate)"
+    assert payback_label(24.0) == "Pays back in ~2 years (Estimate)"

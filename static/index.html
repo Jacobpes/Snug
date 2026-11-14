@@ -673,6 +673,15 @@
     }
 
     /* ---------- kit & payback ---------- */
+    // Months up to 12, then years + months (e.g. "2 years 3 months"); beyond 10 years just years.
+    function fmtDuration(n) {
+      n = Math.max(1, Math.round(n));
+      if (n <= 12) return `${n} ${n === 1 ? "month" : "months"}`;
+      const y = Math.floor(n / 12), r = n % 12;
+      let s = `${y} ${y === 1 ? "year" : "years"}`;
+      if (r && y < 10) s += ` ${r} ${r === 1 ? "month" : "months"}`;
+      return s;
+    }
     const KIT_ROLE = { tc001: "Thermal camera", uno_q_2gb: "Edge AI computer", uno_q_4gb: "Edge AI computer", snug: "Software · open source" };
     const vatTag = (v) => v === "excluded" ? "excl. VAT" : v === "included" ? "incl. VAT" : "";
     function renderKit(st) {
@@ -712,8 +721,8 @@
         if (has) {
           const m = Math.max(1, Math.round(pay.months));
           const lo = Math.max(1, Math.round(pay.months_fast || pay.months)), hi = Math.max(1, Math.round(pay.months_slow || pay.months));
-          box.replaceChildren(el("small", "", "The kit pays for itself in"), el("b", "", `~${m} ${m === 1 ? "month" : "months"}`),
-            el("span", "", lo !== hi ? `Range ${lo}–${hi} months · estimate` : "Estimate"));
+          box.replaceChildren(el("small", "", "The kit pays for itself in"), el("b", "", `~${fmtDuration(m)}`),
+            el("span", "", lo !== hi ? `Range ${fmtDuration(lo)} – ${fmtDuration(hi)} · estimate` : "Estimate"));
         } else {
           box.replaceChildren(el("small", "", "Payback"), el("b", "", "Appears once a leak is found"));
         }
