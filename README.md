@@ -14,6 +14,8 @@ Each defect is also labelled with how much you **save per year** if you fix it (
 
 Nothing is sent to the cloud. A language-model explanation helper is **not** included in the default path.
 
+<img width="1280" height="686" alt="snug screenshot" src="https://github.com/user-attachments/assets/94fbbae9-7d08-477d-879f-4557a4abe818" />
+
 ---
 
 ## Svenska — körning
